@@ -1,0 +1,54 @@
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    controller_plugins: ["VFController"]
+
+    VFController:
+      plugin: "vf_robot_controller::VFRobotController"
+      num_samples: 300
+      num_iterations: 2
+      horizon_time: 2.5
+      control_frequency: 20.0
+      temperature: 0.5
+      spline_degree: 3
+      min_knots: 4
+      max_knots: 14
+      knot_density_scale: 1.0
+      gcf_radius: 2.0
+      gcf_weight_2d: 0.5
+      gcf_weight_clutter: 0.25
+      gcf_weight_volumetric: 0.25
+      gcf_clutter_radius: 0.8
+      gcf_update_rate: 10.0
+      robot_length: 0.6
+      robot_width: 0.4
+      robot_height_min: 0.05
+      robot_height_max: 1.2
+      safety_inflation: 0.07
+      max_vel_x: 0.4
+      min_vel_x: 0.04
+      max_vel_theta: 0.8
+      min_vel_theta: 0.0
+      max_speed_in_tight: 0.12
+      tight_gcf_threshold: 0.55
+      acc_lim_x: 0.4
+      acc_lim_theta: 1.2
+      critics:
+        - "ObstacleCritic"
+        - "VolumetricCritic"
+        - "DynamicObstacleCritic"
+        - "PathFollowCritic"
+        - "SmoothnessCritic"
+        - "GoalCritic"
+        - "VelocityCritic"
+      obstacle_weight_open: 1.0
+      obstacle_weight_tight: 2.5
+      path_follow_weight_open: 1.5
+      path_follow_weight_tight: 0.6
+      noise_sigma_x: 0.12
+      noise_sigma_theta: 0.25
+      visualize_trajectories: false
+      visualize_gcf: false
+      visualize_max_trajectories: 0
+      pointcloud_topic: "/scan_3d"
+      use_3d_clearance: false    # disabled by default — enable when 3D sensor available

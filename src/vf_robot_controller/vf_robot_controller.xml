@@ -1,0 +1,9 @@
+<library path="vf_robot_controller">
+  <class type="vf_robot_controller::VFRobotController"
+         base_class_type="nav2_core::Controller">
+    <description>
+      VF Robot Controller: adaptive B-spline MPPI with Geometric Complexity Field
+      for tight indoor navigation (hospital corridors, cluttered rooms).
+    </description>
+  </class>
+</library>

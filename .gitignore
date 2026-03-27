@@ -1,0 +1,36 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# Ignore external packages
+src/navigation2/
+src/rtabmap/
+
+# IDE
+.vscode/
+
+# Misc
+*.zip
+
+# ROS2 build
+build/
+install/
+log/
+
+# External packages
+src/navigation2/
+src/rtabmap/
+
+# Archives
+*.zip
+
+# Big data
+*.bag
+*.db
+*.sqlite
+*.ply
+*.pcd
+
+# IDE
+.vscode/
