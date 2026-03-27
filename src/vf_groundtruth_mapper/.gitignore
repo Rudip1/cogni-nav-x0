@@ -1,0 +1,7 @@
+build/
+install/
+log/
+2d_gtmap/
+.vscode/
+__pycache__/
+*.pyc

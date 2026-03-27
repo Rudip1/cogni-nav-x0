@@ -1,0 +1,33 @@
+# ===========================================================
+# GT Mapper Parameters
+# Used by gtmap_saver.py and groundtruth_map_plugin
+# ===========================================================
+
+# Output folder where PGM + YAML will be saved
+output_dir: "2d_gtmap"
+
+# Name of the map (used for PGM and YAML files)
+map_name: "gt_map"
+
+# Map resolution (meters per cell)
+map_resolution: 0.05   # fine resolution
+# map_resolution: 0.10  # coarser resolution option
+
+# Initial robot position (used by plugin for wavefront mapping)
+init_robot_x: 0.0
+init_robot_y: 0.0
+
+# Map size if not cropping to camera view (meters)
+map_size_x: 10.0
+map_size_y: 10.0
+
+# Map height (Z) to slice the world
+map_z: 0.3
+
+# Crop map to camera top view (plugin should support this)
+crop_to_view: true
+
+# Thresholds for Nav2 YAML (default)
+occupied_thresh: 0.65
+free_thresh: 0.196
+negate: 0
