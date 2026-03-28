@@ -14,72 +14,128 @@
 
 ## 📋 Table of Contents
 
-- [Overview](#-overview)
-- [Package Structure](#-package-structure)
-- [Why Hybrid C++ + Python](#-why-hybrid-c--python)
-- [URDF vs SDF Spawning](#-urdf-vs-sdf-spawning)
-- [URDF from Another Package](#-urdf-from-another-package)
-- [Worlds](#-worlds)
-- [Launch Files](#-launch-files)
-- [Nodes & Scripts](#-nodes--scripts)
-- [Header Include Path Fix](#-header-include-path-fix)
-- [Environment Setup](#-environment-setup)
-- [Build & Run](#-build--run)
-- [All Commands Reference](#-all-commands-reference)
-- [Troubleshooting](#-troubleshooting)
+- [🌟 Overview](#-overview)
+- [⚡ Quick Start](#-quick-start)
+- [📁 Package Structure](#-package-structure)
+- [🏗️ Architecture: Single Source of Truth](#️-architecture-single-source-of-truth)
+- [🔀 Two Simulation Pipelines: Xacro vs SDF](#-two-simulation-pipelines-xacro-vs-sdf)
+- [🔗 Why robot_state_publisher is Shared](#-why-robot_state_publisher-is-shared)
+- [🚀 Launch Files](#-launch-files)
+- [🌍 Worlds](#-worlds)
+- [🔧 Nodes & Scripts](#-nodes--scripts)
+- [⚙️ Environment Variables (Critical)](#️-environment-variables-critical)
+- [🗺️ TF Chain (Simulation)](#️-tf-chain-simulation)
+- [🔨 Build & Run](#-build--run)
+- [📖 All Commands Reference](#-all-commands-reference)
+- [🐛 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
 
 ---
 
 ## 🌟 Overview
 
-`vf_robot_gazebo` is the **standalone Gazebo simulation package** for the ViroFighter UVC-1 robot. It contains worlds, models, launch files, and sensor nodes. It does **not** contain the URDF or meshes — those live in `vf_robot_description` (single source of truth).
+`vf_robot_gazebo` is the **standalone Gazebo simulation package** for the ViroFighter UVC-1 robot. It contains worlds, models, launch files, and sensor nodes. It does **not** contain the URDF or xacro files — those live in `vf_robot_description` (single source of truth).
 
 This package is a **hybrid `ament_cmake` + Python** package, meaning it compiles C++ executables and installs Python scripts from the same `CMakeLists.txt`. The build system is `ament_cmake` (not `ament_python`), with `ament_cmake_python` bridging Python support.
 
-Key responsibilities:
+**Key responsibilities:**
+
 - 🌍 Gazebo worlds (hospital, corridors, my_world, empty, etc.)
 - 🏗️ Gazebo models (robot SDF, environment models, meshes)
-- 🚀 Launch files for every world × (URDF | SDF) combination
+- 🚀 Launch files for every world × (Xacro | SDF) combination
 - 🔊 C++ ultrasound aggregator node (`ultrasound_cpp`)
 - 🐍 Python ultrasound aggregator node (`ultrasound_py`)
 - 🎮 Keyboard teleop script
 
----
+**Two parallel simulation pipelines:**
+
+- **Xacro pipeline** — processes xacro from `vf_robot_description` at runtime (development)
+- **SDF pipeline** — uses pre-converted `model.sdf` for faster startup (production)
+
+Both pipelines share the same `robot_state_publisher` for TF tree publishing.
+
 ![ViroFighter Gazebo Demo](docs/vf_robot_gazebo.gif)
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+
+```bash
+sudo apt install \
+  ros-humble-gazebo-ros-pkgs \
+  ros-humble-gazebo-ros \
+  ros-humble-robot-state-publisher \
+  ros-humble-joint-state-publisher \
+  ros-humble-rqt-robot-steering \
+  ros-humble-rviz2 \
+  ros-humble-xacro \
+  ros-humble-tf2-tools
+```
+
+### Build
+
+```bash
+cd ~/cogni-nav-x0
+
+# Build both description and gazebo packages together
+colcon build --packages-select vf_robot_description vf_robot_gazebo --symlink-install
+
+# Source
+source install/setup.bash
+```
+
+### Launch Simulation (Xacro pipeline — recommended for development)
+
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
+```
+
+### Launch Simulation (SDF pipeline — faster startup)
+
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
+```
+
+You should see Gazebo with the ViroFighter robot and rqt_robot_steering GUI.
+
+---
+
 ## 📁 Package Structure
 
 ```
 vf_robot_gazebo/
-├── CMakeLists.txt                     # Hybrid ament_cmake + Python build
-├── package.xml                        # Declares ament_cmake build type
-├── setup.py                           # Python module install only (no console_scripts)
-├── docs/
-│   └── vf_robot_gazebo.gif            # Demo animation
-├── include/
+├── 📂 CMakeLists.txt                     # Hybrid ament_cmake + Python build
+├── 📂 package.xml                        # Declares ament_cmake build type
+├── 📂 setup.py                           # Python module install only (no console_scripts)
+├── 📂 docs/
+│   └── vf_robot_gazebo.gif               # Demo animation
+├── 📂 include/
 │   └── vf_robot_gazebo/
-│       └── ultrasound.h               # C++ node header
-├── src/
-│   └── ultrasound.cpp                 # C++ ultrasound aggregator
-├── vf_robot_gazebo/                   # Python package (importable)
+│       └── ultrasound.h                  # C++ node header
+├── 📂 src/
+│   └── ultrasound.cpp                    # C++ ultrasound aggregator
+├── 📂 vf_robot_gazebo/                   # Python package (importable)
 │   ├── __init__.py
 │   └── scripts/
-│       ├── teleop_twist_keyboard.py   # Keyboard teleop
-│       └── ultrasound_py.py           # Python ultrasound aggregator
-├── launch/
-│   ├── vf_robot_state_publisher.launch.py
-│   ├── vf_spawn_urdf.launch.py
-│   ├── vf_spawn_sdf.launch.py
-│   ├── vf_empty_world_urdf.launch.py
-│   ├── vf_empty_world_sdf.launch.py
-│   ├── vf_my_world_urdf.launch.py
+│       ├── teleop_twist_keyboard.py      # Keyboard teleop
+│       └── ultrasound_py.py              # Python ultrasound aggregator
+├── 📂 launch/
+│   ├── vf_robot_state_publisher.launch.py   # Shared by BOTH pipelines
+│   ├── vf_spawn_xacro.launch.py             # Spawns from /robot_description topic
+│   ├── vf_spawn_sdf.launch.py               # Spawns from model.sdf file
+│   ├── vf_empty_world_xacro.launch.py       # Xacro pipeline
+│   ├── vf_empty_world_sdf.launch.py         # SDF pipeline
+│   ├── vf_my_world_xacro.launch.py
 │   ├── vf_my_world_sdf.launch.py
-│   ├── vf_hospital_world_urdf.launch.py
+│   ├── vf_hospital_world_xacro.launch.py
 │   └── vf_hospital_world_sdf.launch.py
-├── models/
-│   ├── uvc1_virofighter/              # Robot Gazebo model (SDF)
+├── 📂 models/
+│   ├── uvc1_virofighter/                 # Robot Gazebo model
 │   │   ├── model.config
-│   │   └── model.sdf
-│   ├── uvc1_common/                   # Shared meshes (.dae / .stl)
+│   │   └── model.sdf                     # ⚠️ AUTO-GENERATED — never edit manually
+│   ├── uvc1_common/                      # Shared meshes for model:// resolution
 │   │   ├── model.config
 │   │   └── meshes/
 │   │       ├── bases/
@@ -92,9 +148,9 @@ vf_robot_gazebo/
 │   ├── uvc1_corridors5/
 │   ├── uvc1_simple_corridor/
 │   └── uvc1_big_rect/
-├── rviz/
-│   └── vf_robot_gazebo.rviz           # Full nav2+costmap RViz config
-├── worlds/
+├── 📂 rviz/
+│   └── vf_robot_gazebo.rviz              # Full nav2+costmap RViz config
+├── 📂 worlds/
 │   ├── empty_world.world
 │   ├── my_world.world
 │   ├── hospital.world
@@ -108,105 +164,54 @@ vf_robot_gazebo/
 │   ├── corridor5.world
 │   ├── corridors2.world
 │   └── sote_1.world
-└── resource/
-    └── vf_robot_gazebo                # ament index marker
+└── 📂 resource/
+    └── vf_robot_gazebo                   # ament index marker
 ```
 
 ---
 
-## 🔀 Why Hybrid C++ + Python
+## 🏗️ Architecture: Single Source of Truth
 
-This package compiles a C++ node **and** installs Python scripts from the same package. This is done with `ament_cmake` as the build type — not `ament_python`.
-
-### The key decisions in `CMakeLists.txt`
-
-**1. `ament_cmake_python` bridges Python into a cmake build:**
-```cmake
-find_package(ament_cmake_python REQUIRED)
-ament_python_install_package(${PROJECT_NAME})   # installs vf_robot_gazebo/ as importable module
-```
-
-**2. A macro auto-installs every `.py` in a folder as a `ros2 run` executable:**
-```cmake
-macro(install_python_scripts FOLDER)
-  file(GLOB _SCRIPTS "${FOLDER}/*.py")
-  foreach(_SCRIPT ${_SCRIPTS})
-    get_filename_component(_NAME ${_SCRIPT} NAME_WE)
-    install(PROGRAMS ${_SCRIPT}
-      DESTINATION lib/${PROJECT_NAME}
-      RENAME ${_NAME}          # strips .py extension
-    )
-  endforeach()
-endmacro()
-
-install_python_scripts("vf_robot_gazebo/scripts")
-```
-
-Drop a `.py` file into `vf_robot_gazebo/scripts/` → rebuild → it becomes a `ros2 run vf_robot_gazebo <name>` command automatically. No `console_scripts` entry in `setup.py` required.
-
-**3. `setup.py` role is intentionally limited:**
-
-`setup.py` only registers the `vf_robot_gazebo/` Python module so it is importable via `import vf_robot_gazebo`. It does **not** list `console_scripts` — that is handled entirely by the cmake macro above. This is the correct pattern for `ament_cmake` hybrid packages.
-
-**4. C++ executable:**
-```cmake
-add_executable(ultrasound_cpp src/ultrasound.cpp)
-ament_target_dependencies(ultrasound_cpp ${COMMON_DEPENDENCIES})
-install(TARGETS ultrasound_cpp DESTINATION lib/${PROJECT_NAME})
-```
-
-Both `ultrasound_cpp` and `ultrasound_py` end up in `install/lib/vf_robot_gazebo/` and are callable via `ros2 run`. They do the same thing — aggregate individual `sensor_msgs/Range` ultrasound topics and republish as a single `vf_robot_messages/UltraSound` message on `/esp/range`. The C++ version is production, the Python version is useful for rapid debugging.
-
----
-
-## 🤔 URDF vs SDF Spawning
-
-Every world has two launch variants: `_urdf` and `_sdf`. Understanding the difference matters.
-
-### URDF spawn (`vf_spawn_urdf.launch.py`)
+The robot model lives in `vf_robot_description`, not here. This is intentional — one source of truth for the robot model shared between real robot bringup and simulation.
 
 ```
-robot_state_publisher  →  reads uvc1_virofighter.urdf from vf_robot_description
-        ↓ publishes /robot_description topic
-spawn_entity.py  →  -topic robot_description  →  Gazebo
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         vf_robot_description                                 │
+│                      (SINGLE SOURCE OF TRUTH)                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  urdf/xacro/                                                                │
+│  ├── uvc1_virofighter.xacro  ◄── MASTER FILE                               │
+│  │       ├── includes: common_properties.xacro                             │
+│  │       ├── includes: sensors.xacro                                       │
+│  │       └── contains: <gazebo> plugin blocks                              │
+│  ├── common_properties.xacro (materials)                                   │
+│  ├── sensors.xacro (D455, D435i, fisheye×4, ultrasonic×5)                  │
+│  └── xacro_to_sdf.sh → converts to model.sdf                               │
+│                                                                             │
+│  meshes/  (package://vf_robot_description/meshes/...)                       │
+│  ├── bases/virofighter_base.dae, Cube.019.dae                              │
+│  ├── sensors/camera_d435i.dae, ...                                         │
+│  └── wheels/wheel_*.dae, wrist_*.dae                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                           │
+                           │ xacro processed at runtime via
+                           │ $(find vf_robot_description)
+                           ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          vf_robot_gazebo                                     │
+│                       (SIMULATION PACKAGE)                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  models/uvc1_virofighter/model.sdf  ← AUTO-GENERATED by xacro_to_sdf.sh    │
+│  models/uvc1_common/meshes/         ← COPY for model:// URI resolution     │
+│  worlds/*.world                     ← Gazebo world files                   │
+│  launch/*_xacro.launch.py           ← Xacro pipeline launches              │
+│  launch/*_sdf.launch.py             ← SDF pipeline launches                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-- Requires `vf_robot_state_publisher.launch.py` to run first (or be included)
-- URDF is processed with `xacro`, then published on `/robot_description`
-- `spawn_entity.py` reads from the topic, converts internally to SDF, and spawns
-- `/robot_description` stays alive — RViz `RobotModel` display works
-- Joint states from Gazebo plugin → `robot_state_publisher` → TF tree ✅
-
-### SDF spawn (`vf_spawn_sdf.launch.py`)
-
-```
-spawn_entity.py  →  -file models/uvc1_virofighter/model.sdf  →  Gazebo directly
-```
-
-- Does **not** require `robot_state_publisher` to be running
-- Reads the pre-built `model.sdf` directly from this package's `models/` folder
-- Gazebo joint state plugin still publishes `/joint_states`
-- But `/robot_description` is not published — RViz `RobotModel` display will be blank
-- Faster startup, useful for pure simulation without RViz robot model
-
-### When Gazebo strips plugins
-
-`gz sdf -p` (the URDF→SDF converter) strips all `<gazebo>` plugin tags and breaks `model://` mesh URIs. The `urdf_to_sdf.sh` script in `vf_robot_description` fixes both and writes output to `models/uvc1_virofighter/model.sdf` in this package. **Never use raw gz sdf output directly.**
-
-### Choosing between them
-
-| Use case | Launch variant |
-|---|---|
-| Full simulation with RViz robot model | `_urdf` |
-| Quick Gazebo-only test | `_sdf` |
-| SLAM / Nav2 (needs `/robot_description`) | `_urdf` |
-| Multi-robot (avoids topic conflicts) | `_sdf` |
-
----
-
-## 🔗 URDF from Another Package
-
-The URDF lives in `vf_robot_description`, not here. This is intentional — one source of truth for the robot model shared between real robot bringup and simulation.
 
 ### How it's linked
 
@@ -222,35 +227,328 @@ find_package(vf_robot_description REQUIRED)
 
 `vf_robot_state_publisher.launch.py` resolves the path at runtime:
 ```python
-from ament_index_python.packages import get_package_share_directory
-
-urdf_path = os.path.join(
-    get_package_share_directory("vf_robot_description"),
-    "urdf",
-    "uvc1_virofighter.urdf",
-)
+xacro_path = PathJoinSubstitution([
+    FindPackageShare('vf_robot_description'),
+    'urdf', 'xacro',
+    'uvc1_virofighter.xacro',
+])
 ```
 
 `colcon` build order is enforced by the `<depend>` tag — `vf_robot_description` is always built before `vf_robot_gazebo`.
 
-### Mesh URIs
+### Mesh URIs — Two Different Schemes
 
-The URDF uses `package://vf_robot_description/meshes/...` URIs. RViz resolves these via the ament package index. Gazebo resolves `model://uvc1_common/meshes/...` via the `GAZEBO_MODEL_PATH` set in `package.xml`:
+| Pipeline | Mesh URI Format | Resolved By |
+|----------|-----------------|-------------|
+| **Xacro** | `package://vf_robot_description/meshes/...` | ament package index |
+| **SDF** | `model://uvc1_common/meshes/...` | `GAZEBO_MODEL_PATH` |
 
-```xml
-<export>
-  <gazebo_ros gazebo_model_path="${prefix}/share/${name}/models"/>
-</export>
+This is why `models/uvc1_common/meshes/` contains a **copy** of the meshes from `vf_robot_description` — Gazebo's `model://` resolver needs them in the model path.
+
+---
+
+## 🔀 Two Simulation Pipelines: Xacro vs SDF
+
+Every world has two launch variants: `*_xacro.launch.py` and `*_sdf.launch.py`. Understanding the difference matters.
+
+### Xacro Pipeline (`*_xacro.launch.py`)
+
+```
+vf_robot_state_publisher.launch.py
+       │
+       ├──► xacro uvc1_virofighter.xacro (from vf_robot_description)
+       │         │
+       │         ▼
+       │    /robot_description topic ───► spawn_entity -topic robot_description
+       │         │                                │
+       │         ▼                                ▼
+       └──► robot_state_publisher           Gazebo (robot appears)
+                 │                                │
+                 ▼                                ▼
+            TF broadcasts ◄────────────── /joint_states
 ```
 
-This makes Gazebo search `install/share/vf_robot_gazebo/models/` for model references.
+**Characteristics:**
+
+- Requires `vf_robot_state_publisher.launch.py` to run first (or be included)
+- Xacro is processed at launch time, then published on `/robot_description`
+- `spawn_entity.py` reads from the topic, converts internally to SDF, and spawns
+- `/robot_description` stays alive — RViz `RobotModel` display works
+- Joint states from Gazebo plugin → `robot_state_publisher` → TF tree ✅
+- **Requires timing delays** (gzclient 3s, spawn 5s) to prevent race conditions
+- Changes to xacro are reflected immediately on next launch (no rebuild needed)
+
+### SDF Pipeline (`*_sdf.launch.py`)
+
+```
+vf_spawn_sdf.launch.py
+       │
+       └──► spawn_entity -file model.sdf ──► Gazebo (robot appears)
+                                                   │
+                                                   ▼
+vf_robot_state_publisher.launch.py           /joint_states
+       │                                           │
+       ├──► xacro uvc1_virofighter.xacro          │
+       │         │                                 │
+       │         ▼                                 │
+       └──► robot_state_publisher ◄────────────────┘
+                 │
+                 ▼
+            TF broadcasts
+```
+
+**Characteristics:**
+
+- Reads the pre-built `model.sdf` directly from this package's `models/` folder
+- Does **not** require xacro processing for spawn (faster startup)
+- Gazebo joint state plugin still publishes `/joint_states`
+- **Still needs `robot_state_publisher`** for TF tree (explained below)
+- `/robot_description` is published for RViz robot model display
+- **No timing delays needed** — model:// URIs are resolved differently
+- Requires running `xacro_to_sdf.sh` after xacro edits
+
+### Comparison Table
+
+| Feature | Xacro Pipeline | SDF Pipeline |
+|---------|---------------|--------------|
+| Source file | Live xacro processing | Pre-converted `model.sdf` |
+| Mesh URIs | `package://vf_robot_description/...` | `model://uvc1_common/...` |
+| Edit workflow | Edit xacro → launch | Edit xacro → run `xacro_to_sdf.sh` → launch |
+| Startup time | Slower (xacro processing + delays) | Faster |
+| Timing delays | Yes (gzclient 3s, spawn 5s) | No |
+| RViz robot model | ✅ Works | ✅ Works |
+| TF tree | ✅ Full | ✅ Full |
+| Use case | Development, testing | Production, demos |
+
+### When Gazebo strips plugins
+
+`gz sdf -p` (the URDF→SDF converter) strips all `<gazebo>` plugin tags and breaks `model://` mesh URIs. The `xacro_to_sdf.sh` script in `vf_robot_description` fixes both and writes output to `models/uvc1_virofighter/model.sdf` in this package. **Never use raw gz sdf output directly. Never edit model.sdf manually.**
+
+### Choosing between them
+
+| Use case | Launch variant |
+|----------|----------------|
+| Development / rapid iteration | `*_xacro.launch.py` |
+| Production / demos | `*_sdf.launch.py` |
+| Full simulation with RViz | Either (both work) |
+| SLAM / Nav2 (needs `/robot_description`) | Either (both publish it) |
+| Quick Gazebo-only test | `*_sdf.launch.py` |
+
+---
+
+## 🔗 Why `robot_state_publisher` is Shared
+
+**Both pipelines use the same `vf_robot_state_publisher.launch.py`!**
+
+This is not obvious at first, so here's the full explanation.
+
+### The TF Tree Problem
+
+Gazebo's `libgazebo_ros_diff_drive.so` plugin **only publishes ONE transform**:
+
+```
+odom → base_footprint
+```
+
+That's it. Gazebo doesn't know or care about your robot's internal link structure (base_link, wheels, sensors, etc.).
+
+But RViz and Nav2 need the **complete TF tree** to visualize and navigate:
+
+```
+odom
+  └── base_footprint
+        └── base_link
+              ├── wheel_front_left_link
+              ├── wheel_front_right_link
+              ├── camera_d455_link
+              │     ├── camera_d455_color_optical_frame
+              │     ├── camera_d455_depth_optical_frame
+              │     └── camera_d455_imu_frame
+              ├── camera_d435i_link
+              │     ├── camera_d435i_color_optical_frame
+              │     ├── camera_d435i_depth_optical_frame
+              │     └── camera_d435i_imu_frame
+              ├── camera_fisheye_front_link
+              ├── camera_fisheye_left_link
+              ├── camera_fisheye_right_link
+              ├── camera_fisheye_rear_link
+              ├── ultrasonic_front_left_link
+              ├── ultrasonic_front_right_link
+              ├── ultrasonic_side_left_link
+              ├── ultrasonic_side_right_link
+              ├── ultrasonic_rear_link
+              ├── wrist_rear_left_link
+              │     └── wheel_rear_left_link
+              ├── wrist_rear_right_link
+              │     └── wheel_rear_right_link
+              └── uvc_lights_link
+```
+
+**Who publishes all those other transforms?** → `robot_state_publisher`
+
+### What `robot_state_publisher` Does
+
+1. **Reads** the xacro from `vf_robot_description` (always the xacro, never the SDF)
+2. **Parses** all `<joint>` elements to understand the kinematic tree
+3. **Subscribes** to `/joint_states` topic (published by Gazebo's joint_state plugin)
+4. **Publishes** TF transforms for every link in the robot
+5. **Publishes** `/robot_description` topic (for RViz robot model display)
+
+### Why SDF Mode Still Needs RSP
+
+Even though SDF mode spawns from `model.sdf`, it still needs `robot_state_publisher` because:
+
+| Reason | Explanation |
+|--------|-------------|
+| **SDF format is different** | RSP only understands URDF format, not SDF |
+| **Gazebo only publishes one TF** | `odom → base_footprint` — all other TF comes from RSP |
+| **RViz needs `/robot_description`** | RSP publishes this topic for the robot model display |
+| **Single source of truth** | RSP reads xacro, keeping TF in sync with the actual robot definition |
+| **Nav2 needs sensor frames** | Without RSP, sensor TF frames don't exist |
+
+### The Code in `vf_robot_state_publisher.launch.py`
+
+```python
+# Always reads from vf_robot_description xacro (single source of truth)
+xacro_path = PathJoinSubstitution([
+    FindPackageShare('vf_robot_description'),  # ← Always this package
+    'urdf', 'xacro',
+    'uvc1_virofighter.xacro',
+])
+
+# Process xacro → URDF string
+robot_description_content = ParameterValue(
+    Command([FindExecutable(name='xacro'), ' ', xacro_path]),
+    value_type=str,
+)
+
+# robot_state_publisher node
+Node(
+    package='robot_state_publisher',
+    executable='robot_state_publisher',
+    parameters=[{
+        'use_sim_time': use_sim_time,  # ← Important for Gazebo clock sync
+        'robot_description': robot_description_content,
+    }],
+)
+```
+
+### What Happens Without RSP?
+
+| Component | With RSP | Without RSP |
+|-----------|----------|-------------|
+| Robot in Gazebo | ✅ Appears | ✅ Appears |
+| Robot moves with `/cmd_vel` | ✅ Works | ✅ Works |
+| `/odom` topic | ✅ Works | ✅ Works |
+| `/joint_states` topic | ✅ Works | ✅ Works |
+| RViz robot model | ✅ Shows | ❌ Blank |
+| TF: `odom → base_footprint` | ✅ Exists | ✅ Exists (from Gazebo) |
+| TF: `base_footprint → base_link` | ✅ Exists | ❌ Missing |
+| TF: sensor frames | ✅ Exist | ❌ Missing |
+| Nav2 can find sensors | ✅ Yes | ❌ No |
+
+---
+
+## 🚀 Launch Files
+
+### Helper Launches (included by world launches)
+
+| Launch File | Purpose | Used By |
+|-------------|---------|---------|
+| `vf_robot_state_publisher.launch.py` | Processes xacro, publishes `/robot_description` and TF | **Both pipelines** |
+| `vf_spawn_xacro.launch.py` | Spawns robot from `/robot_description` topic | Xacro pipeline |
+| `vf_spawn_sdf.launch.py` | Spawns robot from `model.sdf` file directly | SDF pipeline |
+
+### `vf_robot_state_publisher.launch.py`
+
+Reads the xacro from `vf_robot_description` and publishes `/robot_description` + TF. This is a dependency of **all** world launches (both Xacro and SDF).
+
+```bash
+ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py
+ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py use_sim_time:=false
+```
+
+### `vf_spawn_xacro.launch.py`
+
+Spawns the robot by reading `/robot_description` topic. Requires state publisher already running.
+
+```bash
+ros2 launch vf_robot_gazebo vf_spawn_xacro.launch.py
+ros2 launch vf_robot_gazebo vf_spawn_xacro.launch.py x_pose:=2.0 y_pose:=1.0 theta:=1.57
+```
+
+### `vf_spawn_sdf.launch.py`
+
+Spawns the robot directly from `models/uvc1_virofighter/model.sdf`. No topic dependency.
+
+```bash
+ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py x_pose:=0.0 y_pose:=0.0 theta:=0.0
+```
+
+---
+
+### World Launches — Xacro Pipeline
+
+Each includes: gzserver + gzclient (delayed 3s) + robot_state_publisher + spawn_xacro (delayed 5s) + rqt_robot_steering.
+
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
+ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
+ros2 launch vf_robot_gazebo vf_hospital_world_xacro.launch.py
+```
+
+**Why the delays?**
+
+| Component | Delay | Reason |
+|-----------|-------|--------|
+| gzclient | 3s | Prevents "Assertion px != 0" GUI race crash |
+| spawn_entity | 5s | Prevents gzserver crash when loading `package://` mesh URIs before rendering scene is ready |
+| rviz2 | 6s | Ensures robot is spawned before visualization |
+
+---
+
+### World Launches — SDF Pipeline
+
+Each includes: gzserver + gzclient + robot_state_publisher + spawn_sdf + rqt_robot_steering. No delays needed.
+
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_hospital_world_sdf.launch.py
+```
+
+---
+
+### Launch Arguments (all world launches)
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `use_sim_time` | `true` | Use Gazebo clock |
+| `x_pose` | varies by world | Spawn X position |
+| `y_pose` | varies by world | Spawn Y position |
+| `theta` | varies by world | Spawn yaw (radians) |
+
+**Default spawn poses:**
+
+| World | x_pose | y_pose | theta |
+|-------|--------|--------|-------|
+| `empty_world` | `0.0` | `0.0` | `0.0` |
+| `hospital` | `-2.0` | `-0.5` | `0.0` |
+| `my_world` | `9.0` | `0.5` | `3.14` |
+
+**Example with custom pose:**
+
+```bash
+ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py x_pose:=5.0 y_pose:=2.0 theta:=1.57
+```
 
 ---
 
 ## 🌍 Worlds
 
 | World file | Description |
-|---|---|
+|------------|-------------|
 | `empty_world.world` | Flat ground plane, minimal |
 | `my_world.world` | Office-style layout with walls, tables, shelves, console |
 | `hospital.world` | Static hospital environment with `uvc1_hospital` model |
@@ -261,68 +559,6 @@ This makes Gazebo search `install/share/vf_robot_gazebo/models/` for model refer
 | `corridor.world` / `corridor3-5.world` | Corridor variants of increasing complexity |
 | `corridors2.world` | Multi-segment corridor maze |
 | `sote_1.world` | Custom environment |
-
-Default spawn pose in `vf_my_world_urdf.launch.py`: `x=9.0, y=0.5, θ=3.14` (robot faces left into the environment).
-
----
-
-## 🚀 Launch Files
-
-### `vf_robot_state_publisher.launch.py`
-
-Reads the URDF from `vf_robot_description` and publishes `/robot_description`. This is a dependency of all `_urdf` world launches. You rarely need to run this standalone.
-
-```bash
-ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py
-ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py use_sim_time:=false
-```
-
-### `vf_spawn_urdf.launch.py`
-
-Spawns the robot by reading `/robot_description` topic. Requires state publisher already running.
-
-```bash
-ros2 launch vf_robot_gazebo vf_spawn_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_spawn_urdf.launch.py x_pose:=2.0 y_pose:=1.0 theta:=1.57
-```
-
-### `vf_spawn_sdf.launch.py`
-
-Spawns the robot directly from `models/uvc1_virofighter/model.sdf`. No state publisher needed.
-
-```bash
-ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py
-ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py x_pose:=0.0 y_pose:=0.0 theta:=0.0
-```
-
-### World launches (URDF variants)
-
-Each includes: gzserver + gzclient + robot_state_publisher + spawn_urdf + rqt_robot_steering + rviz2.
-
-```bash
-ros2 launch vf_robot_gazebo vf_empty_world_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_my_world_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_hospital_world_urdf.launch.py
-```
-
-### World launches (SDF variants)
-
-Each includes: gzserver + gzclient + spawn_sdf. No RViz, no state publisher.
-
-```bash
-ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
-ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
-ros2 launch vf_robot_gazebo vf_hospital_world_sdf.launch.py
-```
-
-### Launch arguments (all world launches)
-
-| Argument | Default | Description |
-|---|---|---|
-| `use_sim_time` | `true` | Use Gazebo clock |
-| `x_pose` | `9.0` (my_world) / `0.0` | Spawn X |
-| `y_pose` | `0.5` (my_world) / `0.0` | Spawn Y |
-| `theta` | `3.14` (my_world) / `0.0` | Spawn yaw (radians) |
 
 ---
 
@@ -339,7 +575,7 @@ ros2 run vf_robot_gazebo ultrasound_cpp
 **Subscribed topics:**
 
 | Topic | Sensor code |
-|---|---|
+|-------|-------------|
 | `/ultrasound/front_left` | `0` |
 | `/ultrasound/front_right` | `1` |
 | `/ultrasound/right` | `2` |
@@ -367,7 +603,7 @@ ros2 run vf_robot_gazebo teleop_twist_keyboard
 **Key bindings:**
 
 | Key | Action |
-|---|---|
+|-----|--------|
 | `w` | Forward |
 | `x` | Backward |
 | `a` | Turn left |
@@ -379,81 +615,113 @@ Default linear speed: `0.5 m/s` · Default angular speed: `1.0 rad/s`
 
 ---
 
-## 🔧 Header Include Path Fix
+## ⚙️ Environment Variables (Critical)
 
-The C++ ultrasound node uses a header at `include/vf_robot_gazebo/ultrasound.h`. 
+### The Problem: SetEnvironmentVariable Replaces, Not Prepends
 
-**1. The header file location:**
-```
-include/vf_robot_gazebo/ultrasound.h   
-```
+ROS 2 launch `SetEnvironmentVariable` **replaces** environment variables by default. If you do this:
 
-**2. The `#include` directive in `ultrasound.cpp`:**
-```cpp
-#include "vf_robot_gazebo/ultrasound.h"
-```
-
-**3. `CMakeLists.txt` include path:**
-```cmake
-include_directories(include ${GAZEBO_INCLUDE_DIRS})
-target_include_directories(ultrasound_cpp PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
+```python
+# ❌ WRONG — destroys Gazebo's own paths
+SetEnvironmentVariable(
+    name='GAZEBO_RESOURCE_PATH',
+    value=os.path.dirname(pkg_desc),
 )
 ```
 
-If the path in the `.cpp` doesn't match the actual directory name under `include/`, the build fails with:
+You destroy Gazebo's own resource paths (`/usr/share/gazebo-11`), causing:
+
+- RTShaderSystem errors
+- gzserver exit code 255
+- Missing textures and shaders
+- Gazebo crashes on startup
+
+### The Solution: Hardcode All Required Paths
+
+The corrected launch files **prepend** by hardcoding all required paths:
+
+```python
+# ✅ CORRECT — preserves system paths
+SetEnvironmentVariable(
+    name='GAZEBO_RESOURCE_PATH',
+    value=os.pathsep.join([
+        os.path.dirname(pkg_desc),           # Your package
+        '/usr/share/gazebo-11',              # Gazebo resources (REQUIRED)
+        '/opt/ros/humble/share',             # ROS resources
+    ]),
+)
+
+SetEnvironmentVariable(
+    name='GAZEBO_MODEL_PATH',
+    value=os.pathsep.join([
+        os.path.join(pkg_vf_gazebo, 'models'),  # Your models
+        os.path.dirname(pkg_desc),              # For package:// resolution
+        '/usr/share/gazebo-11/models',          # Gazebo default models
+    ]),
+)
+
+SetEnvironmentVariable(
+    name='GAZEBO_PLUGIN_PATH',
+    value=os.pathsep.join([
+        '/opt/ros/humble/lib',                              # ROS Gazebo plugins
+        '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins',      # Gazebo plugins
+    ]),
+)
 ```
-fatal error: vf_robot_gazebo/ultrasound.h: No such file or directory
-```
 
-Also note the ROS 2-style include for the custom message:
-```cpp
-#include <vf_robot_messages/msg/ultra_sound.hpp>   // ROS2 style
+### Why Hardcode Instead of Reading os.environ?
 
-```
+Launch files run in a subprocess where environment variables may not be set yet. Reading `os.environ.get('GAZEBO_RESOURCE_PATH', '')` often returns empty, so prepending to empty still loses the system paths.
 
----
+### `.bashrc` Setup (Optional)
 
-## ⚙️ Environment Setup
-
-### `.bashrc` entries
-
-Add these to `~/.bashrc` for the workspace to auto-source and Gazebo to find models:
+The launch files handle environment variables automatically. But you can add these to `~/.bashrc` for manual testing:
 
 ```bash
 # Workspace
 source ~/cogni-nav-x0/install/setup.bash
 
-# Gazebo model path — lets Gazebo find uvc1_hospital, uvc1_corridors etc.
+# Optional: Gazebo model path (launch files handle this automatically)
 export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/cogni-nav-x0/install/share/vf_robot_gazebo/models
-
-# Optional: suppress libGL warnings on some systems
-export LIBGL_ALWAYS_SOFTWARE=0
 ```
 
-Apply immediately:
-```bash
-source ~/.bashrc
+---
+
+## 🗺️ TF Chain (Simulation)
+
+```
+[navigation]        [gazebo]                   [robot_state_publisher]
+     │                   │                            │
+     ▼                   ▼                            ▼
+   map    ──────►   odom    ──────►   base_footprint ──► base_link ──► all links
+              (amcl/slam)    (diff drive)        (fixed)        (RSP + /joint_states)
 ```
 
-### Verify Gazebo finds your models
+### Who publishes what
+
+| TF Transform | Publisher | When available |
+|--------------|-----------|----------------|
+| `map → odom` | `amcl` or `slam_toolbox` | Nav2 running + map loaded |
+| `odom → base_footprint` | Gazebo diff drive plugin | Gazebo running |
+| `base_footprint → base_link` | `robot_state_publisher` | Always (start RSP first) |
+| `base_link → wheel_*` | `robot_state_publisher` + `/joint_states` | Always |
+| `base_link → camera_*` | `robot_state_publisher` (static) | Always |
+| `base_link → ultrasonic_*` | `robot_state_publisher` (static) | Always |
+
+### Verifying the TF tree
 
 ```bash
-echo $GAZEBO_MODEL_PATH
-# Should include: .../install/share/vf_robot_gazebo/models
-```
+# Save TF tree to frames.pdf
+ros2 run tf2_tools view_frames
 
-### Verify the package is found
+# Check diff drive TF (from Gazebo)
+ros2 run tf2_ros tf2_echo odom base_footprint
 
-```bash
-ros2 pkg prefix vf_robot_gazebo
-# → /home/<user>/cogni-nav-x0/install/vf_robot_gazebo
+# Check RSP TF (from robot_state_publisher)
+ros2 run tf2_ros tf2_echo base_link camera_d455_link
 
-ros2 pkg list | grep vf_robot
-# → vf_robot_description
-# → vf_robot_gazebo
-# → vf_robot_messages
+# List all frames
+ros2 topic echo /tf --once | grep frame_id
 ```
 
 ---
@@ -501,8 +769,11 @@ ls install/vf_robot_gazebo/lib/vf_robot_gazebo/
 # 2. Confirm launch files installed
 ls install/vf_robot_gazebo/share/vf_robot_gazebo/launch/
 
-# 3. Launch my_world with URDF
-ros2 launch vf_robot_gazebo vf_my_world_urdf.launch.py
+# 3. Launch empty_world with xacro pipeline
+ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
+
+# 4. Or with SDF pipeline (faster)
+ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
 ```
 
 ---
@@ -523,23 +794,23 @@ colcon build --packages-select vf_robot_description vf_robot_gazebo --symlink-in
 colcon build --packages-select vf_robot_gazebo --event-handlers console_direct+
 ```
 
-### Launch worlds
+### Launch worlds — Xacro pipeline (development)
 
 ```bash
-# Empty world
-ros2 launch vf_robot_gazebo vf_empty_world_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
-
-# My world (office-style)
-ros2 launch vf_robot_gazebo vf_my_world_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
-
-# Hospital world
-ros2 launch vf_robot_gazebo vf_hospital_world_urdf.launch.py
-ros2 launch vf_robot_gazebo vf_hospital_world_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
+ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
+ros2 launch vf_robot_gazebo vf_hospital_world_xacro.launch.py
 
 # Custom spawn pose
-ros2 launch vf_robot_gazebo vf_my_world_urdf.launch.py x_pose:=5.0 y_pose:=2.0 theta:=0.0
+ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py x_pose:=5.0 y_pose:=2.0 theta:=0.0
+```
+
+### Launch worlds — SDF pipeline (production)
+
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
+ros2 launch vf_robot_gazebo vf_hospital_world_sdf.launch.py
 ```
 
 ### Run nodes individually
@@ -558,11 +829,11 @@ ros2 run vf_robot_gazebo teleop_twist_keyboard
 ### Manual robot spawn (after Gazebo is already running)
 
 ```bash
-# State publisher first (if using URDF spawn)
+# State publisher first
 ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py
 
-# Spawn via URDF topic
-ros2 launch vf_robot_gazebo vf_spawn_urdf.launch.py x_pose:=0.0 y_pose:=0.0
+# Spawn via xacro topic
+ros2 launch vf_robot_gazebo vf_spawn_xacro.launch.py x_pose:=0.0 y_pose:=0.0
 
 # Spawn via SDF file
 ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py x_pose:=0.0 y_pose:=0.0
@@ -586,6 +857,9 @@ ros2 topic echo /odom
 
 # Joint states
 ros2 topic echo /joint_states --once
+
+# Robot description
+ros2 topic echo /robot_description --once | head -5
 ```
 
 ### TF inspection
@@ -602,11 +876,17 @@ ros2 run tf2_ros tf2_echo odom base_footprint
 ros2 topic echo /tf_static --once
 ```
 
-### Verify robot description loaded
+### Verify robot_state_publisher
 
 ```bash
-ros2 param get /robot_state_publisher robot_description | head -5
-ros2 topic echo /robot_description --once | head -3
+# Check RSP is running
+ros2 node list | grep robot_state_publisher
+
+# Check /robot_description is published
+ros2 topic list | grep robot_description
+
+# Check TF is being broadcast
+ros2 topic echo /tf --once | grep frame_id
 ```
 
 ### rqt tools
@@ -625,7 +905,7 @@ ros2 run rqt_tf_tree rqt_tf_tree
 ### RViz standalone
 
 ```bash
-# Open with the pre-configured nav2 layout
+# Open with the pre-configured layout
 ros2 run rviz2 rviz2 -d $(ros2 pkg prefix vf_robot_gazebo)/share/vf_robot_gazebo/rviz/vf_robot_gazebo.rviz
 ```
 
@@ -646,116 +926,135 @@ find $(ros2 pkg prefix vf_robot_gazebo) -name "my_world.world"
 
 ## 🐛 Troubleshooting
 
-### `fatal error: vf_robot_gazebo/ultrasound.h: No such file or directory`
+### gzserver crashes with exit code 255 / RTShaderSystem errors
 
-The `#include` in `ultrasound.cpp` doesn't match the actual directory name under `include/`.
+**Cause:** `GAZEBO_RESOURCE_PATH` was replaced instead of prepended, destroying Gazebo's shader paths.
 
-```bash
-# Check what directory exists
-ls include/
-# Must be: vf_robot_gazebo/
-
-# Fix the include in ultrasound.cpp
-# Change: #include "uvc1_gazebo/ultrasound.h"
-# To:     #include "vf_robot_gazebo/ultrasound.h"
+**Fix:** Use the corrected launch files that hardcode system paths:
+```python
+value=os.pathsep.join([
+    os.path.dirname(pkg_desc),
+    '/usr/share/gazebo-11',        # ← This was missing
+    '/opt/ros/humble/share',
+])
 ```
 
-### `Could not find package vf_robot_messages`
+---
 
+### RViz robot model is blank / "No transform from X to Y"
+
+**Cause:** `robot_state_publisher` is not running or failed.
+
+**Fix:**
 ```bash
-colcon build --packages-select vf_robot_messages --symlink-install
-source install/setup.bash
-colcon build --packages-select vf_robot_gazebo --symlink-install
+# Check RSP is running
+ros2 node list | grep robot_state_publisher
+
+# Check /robot_description exists
+ros2 topic list | grep robot_description
+
+# If missing, RSP failed — check launch output for errors
 ```
 
-### Gazebo can't find `uvc1_hospital` or `uvc1_corridors` models
+---
 
+### No TF from odom to base_footprint
+
+**Cause:** Gazebo diff drive plugin failed to load or robot didn't spawn.
+
+**Fix:**
 ```bash
-# Check model path
-echo $GAZEBO_MODEL_PATH
-
-# Should contain the models directory. If not:
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/cogni-nav-x0/install/share/vf_robot_gazebo/models
-```
-
-The `package.xml` export tag handles this automatically after sourcing:
-```xml
-<gazebo_ros gazebo_model_path="${prefix}/share/${name}/models"/>
-```
-If models still aren't found, add the export manually to `.bashrc`.
-
-### Robot spawns but no TF / joint states
-
-The Gazebo diff drive and joint state publisher plugins are only in `model.sdf`, not in the raw URDF. Confirm:
-
-```bash
-# Should show odom→base_footprint being broadcast
-ros2 topic echo /tf --once | grep frame_id
-
-# Should show 6 joint values
-ros2 topic echo /joint_states --once
-```
-
-If `/joint_states` is missing, the Gazebo plugin failed to load. Check `gzserver` terminal for plugin errors.
-
-### RViz `RobotModel` shows "No transform from odom to base_footprint"
-
-Gazebo isn't publishing `odom→base_footprint`. Usually the diff drive plugin failed. Check:
-```bash
-# Is Gazebo actually running?
+# Is Gazebo running?
 ros2 topic list | grep odom
 
 # Did spawn succeed?
 ros2 service list | grep gazebo
+
+# Check gzserver terminal for plugin errors
 ```
+
+---
+
+### Robot spawns but sensors have no TF frames
+
+**Cause:** `robot_state_publisher` is not running.
+
+**Fix:** Ensure `vf_robot_state_publisher.launch.py` is included in your launch. Both Xacro and SDF pipelines need it.
+
+---
+
+### Xacro changes not reflected in SDF pipeline
+
+**Cause:** SDF pipeline uses pre-converted `model.sdf`, not live xacro.
+
+**Fix:** Run the conversion script after editing xacro:
+```bash
+cd ~/cogni-nav-x0/src/vf_robot_description/urdf/xacro
+./xacro_to_sdf.sh uvc1_virofighter.xacro
+```
+
+---
+
+### Gazebo can't find `uvc1_hospital` or `uvc1_corridors` models
+
+**Cause:** `GAZEBO_MODEL_PATH` doesn't include the models directory.
+
+**Fix:** The corrected launch files set this automatically. If still failing:
+```bash
+# Check model path
+echo $GAZEBO_MODEL_PATH
+
+# Should contain the models directory. If not, add manually:
+export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/cogni-nav-x0/install/share/vf_robot_gazebo/models
+```
+
+---
 
 ### Python script not found after build
 
-With `--symlink-install`, Python scripts are symlinked. Without it they are copied — changes require rebuild.
+**Cause:** Without `--symlink-install`, Python scripts are copied — changes require rebuild.
 
+**Fix:**
 ```bash
 # Check the script is installed
 ls install/vf_robot_gazebo/lib/vf_robot_gazebo/
 
-# If missing, rebuild
+# If missing or outdated, rebuild with symlink
 colcon build --packages-select vf_robot_gazebo --symlink-install
 ```
+
+---
 
 ### `setup.py install is deprecated` warning
 
 This is a colcon/pip warning about `setup.py` in hybrid packages. It is cosmetic and does not affect the build. The package still installs correctly.
 
 ---
-## ⚡ if robot model error?  Quick Setup
 
-Add to `~/.bashrc`:
+### `fatal error: vf_robot_gazebo/ultrasound.h: No such file or directory`
+
+**Cause:** The `#include` in `ultrasound.cpp` doesn't match the actual directory name under `include/`.
+
+**Fix:**
 ```bash
-export UVC1_MODEL=virofighter
+# Check what directory exists
+ls include/
+# Must be: vf_robot_gazebo/
+
+# The include in ultrasound.cpp must match:
+#include "vf_robot_gazebo/ultrasound.h"
 ```
 
-Verify:
+---
+
+### `Could not find package vf_robot_messages`
+
+**Fix:**
 ```bash
-echo $UVC1_MODEL
+colcon build --packages-select vf_robot_messages --symlink-install
+source install/setup.bash
+colcon build --packages-select vf_robot_gazebo --symlink-install
 ```
-
-Expected output:
-```
-virofighter
-```
-
-## 🗺️ TF Chain (Simulation)
-
-```
-map  ──►  odom  ──────────────►  base_footprint  ──►  base_link  ──►  all sensor/wheel links
-      (amcl/slam)   (gazebo diff drive plugin)    (fixed)        (robot_state_publisher)
-```
-
-| Transform | Publisher | Requires |
-|---|---|---|
-| `map → odom` | `amcl` or `slam_toolbox` | Nav2 + map |
-| `odom → base_footprint` | Gazebo diff drive plugin | Gazebo + spawned robot |
-| `base_footprint → base_link` | `robot_state_publisher` | URDF loaded |
-| `base_link → wheels/sensors` | `robot_state_publisher` + `/joint_states` | Always |
 
 ---
 
@@ -767,5 +1066,5 @@ Apache 2.0 — see [LICENSE](LICENSE)
 
 ## 👤 Maintainer
 
-**Pravin** — olipravin18@gmail.com
+**Pravin Oli** — olipravin18@gmail.com
 Project: **cogni-nav-x0** | Package: `vf_robot_gazebo`
