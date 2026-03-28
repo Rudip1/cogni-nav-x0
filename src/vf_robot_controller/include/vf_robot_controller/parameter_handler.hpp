@@ -83,6 +83,7 @@ struct Parameters
 
   // ── Pointcloud topic for 3D data ──────────────────────────────────────────
   std::string pointcloud_topic{"/scan_3d"};
+  std::string controller_mode{"fixed"};     // fixed | collect | inference
   bool use_3d_clearance{true};
 };
 

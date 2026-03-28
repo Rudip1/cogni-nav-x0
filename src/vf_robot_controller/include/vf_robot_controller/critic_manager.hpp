@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "pluginlib/class_loader.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -18,15 +19,6 @@
 namespace vf_robot_controller
 {
 
-/**
- * @brief CriticManager — loads, owns, and calls all critics.
- *
- * Uses pluginlib to load critics at runtime.
- * Applies GCF-driven weight scaling before each scoring call:
- *   - obstacle_critic weight  → scales UP when gcf_mean > tight_threshold
- *   - path_follow_critic weight → scales DOWN when gcf_mean > tight_threshold
- * All other critics keep their base weights.
- */
 class CriticManager
 {
 public:
@@ -37,8 +29,17 @@ public:
     const Parameters & params);
 
   /**
+   * @brief Set dynamic weights from meta-critic network.
+   * Called every control cycle by the Optimizer with values from WeightAdapter.
+   * Size must match number of loaded critics exactly.
+   * Falls back to uniform if size mismatches.
+   */
+  void setWeights(const std::vector<float> & weights);
+
+  /**
    * @brief Score all N trajectory samples. Returns cost vector length N.
-   * Parallelised with std::for_each + execution::par_unseq if available.
+   * Applies dynamic_weights_[i] to each critic's raw score.
+   * GCF-driven scaling acts as a sub-multiplier on top.
    */
   std::vector<double> scoreAll(
     const std::vector<models::BSplineTrajectory> & trajectories,
@@ -51,6 +52,7 @@ public:
 
   /**
    * @brief Score a single trajectory (used by safety shell check).
+   * Uses current dynamic_weights_.
    */
   double scoreSingle(
     const models::BSplineTrajectory & traj,
@@ -63,6 +65,9 @@ public:
 
   const std::vector<std::shared_ptr<critics::CriticFunction>> & critics() const
   { return critics_; }
+
+  /** @brief Returns current dynamic weight for critic at slot index. */
+  float dynamicWeight(int slot) const;
 
 private:
   critics::CriticData buildData(
@@ -77,6 +82,11 @@ private:
   std::vector<std::shared_ptr<critics::CriticFunction>> critics_;
   std::shared_ptr<pluginlib::ClassLoader<critics::CriticFunction>> loader_;
   const Parameters * params_{nullptr};
+
+  // Dynamic weights from meta-critic — one per critic, same slot order as critics_
+  mutable std::mutex weights_mutex_;
+  std::vector<float> dynamic_weights_;  // set by setWeights(), applied in scoreAll()
+
   rclcpp::Logger logger_{rclcpp::get_logger("CriticManager")};
 };
 

@@ -85,6 +85,7 @@ void ParameterHandler::declareAndGet(
   // 3D
   DECLARE_GET(node, prefix, pointcloud_topic, std::string("/scan_3d"));
   DECLARE_GET(node, prefix, use_3d_clearance, true);
+  DECLARE_GET(node, prefix, controller_mode, std::string("fixed"));
 }
 
 rcl_interfaces::msg::SetParametersResult

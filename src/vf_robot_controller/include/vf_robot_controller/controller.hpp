@@ -20,24 +20,34 @@
 #include "vf_robot_controller/safety/hard_safety_shell.hpp"
 #include "vf_robot_controller/gcf/geometric_complexity_field.hpp"
 #include "vf_robot_controller/tools/trajectory_visualizer.hpp"
+#include "vf_robot_controller/tools/weight_adapter.hpp"
+#include "vf_robot_controller/tools/data_recorder.hpp"
 
 namespace vf_robot_controller
 {
 
 /**
- * @brief VFRobotController — Nav2 local controller plugin.
+ * @brief Operating mode — set via controller_mode YAML parameter.
  *
- * Implements nav2_core::Controller. Delegates all planning to Optimizer,
- * all safety to HardSafetyShell, and all environment analysis to GCF.
- * This class only handles lifecycle, parameter loading, and Nav2 interface.
+ *   FIXED     : classical MPPI, fixed YAML weights, no Python nodes needed.
+ *               Use this as the baseline for thesis benchmarking.
+ *
+ *   COLLECT   : fixed weights + DataRecorder active.
+ *               Publishes critic data to /vf_controller/critic_data.
+ *               Run data_logger.py alongside to write HDF5 training data.
+ *
+ *   INFERENCE : WeightAdapter active, receives dynamic weights from
+ *               inference_node.py via /vf_controller/meta_weights.
+ *               Falls back to YAML weights if Python node is absent.
  */
+enum class ControllerMode { FIXED, COLLECT, INFERENCE };
+
 class VFRobotController : public nav2_core::Controller
 {
 public:
   VFRobotController() = default;
   ~VFRobotController() override = default;
 
-  // ── nav2_core::Controller interface ───────────────────────────────────────
   void configure(
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     std::string name,
@@ -58,31 +68,36 @@ public:
   void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
 
 private:
-  // ── Pointcloud callback for 3D volumetric clearance ───────────────────────
   void pointcloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
 
-  // ── Members ───────────────────────────────────────────────────────────────
+  static ControllerMode modeFromString(const std::string & s);
+
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   rclcpp::Logger logger_{rclcpp::get_logger("VFRobotController")};
   std::string name_;
 
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::Buffer>              tf_buffer_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav_msgs::msg::Path global_plan_;
 
-  std::unique_ptr<ParameterHandler> param_handler_;
-  std::unique_ptr<Optimizer>        optimizer_;
-  std::unique_ptr<safety::HardSafetyShell> safety_shell_;
+  std::unique_ptr<ParameterHandler>              param_handler_;
+  std::unique_ptr<Optimizer>                     optimizer_;
+  std::unique_ptr<safety::HardSafetyShell>       safety_shell_;
   std::shared_ptr<gcf::GeometricComplexityField> gcf_;
   std::unique_ptr<tools::TrajectoryVisualizer>   visualizer_;
 
-  // Pointcloud subscription for 3D data
+  // ── Meta-critic additions ─────────────────────────────────────────────────
+  ControllerMode                           mode_{ControllerMode::FIXED};
+  std::unique_ptr<tools::WeightAdapter>    weight_adapter_;
+  std::unique_ptr<tools::DataRecorder>     data_recorder_;
+
+  // Pointcloud
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_sub_;
   sensor_msgs::msg::PointCloud2::SharedPtr latest_pointcloud_;
   std::mutex pcl_mutex_;
 
   double speed_limit_{1.0};
-  bool speed_limit_is_percentage_{false};
+  bool   speed_limit_is_percentage_{false};
 };
 
 }  // namespace vf_robot_controller

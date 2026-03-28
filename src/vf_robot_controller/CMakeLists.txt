@@ -8,8 +8,9 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ── Dependencies ────────────────────────────────────────────────────────────
+# ── Dependencies ─────────────────────────────────────────────────────────────
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(nav2_core REQUIRED)
@@ -18,6 +19,7 @@ find_package(nav2_util REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -26,7 +28,6 @@ find_package(visualization_msgs REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-# Optional: PCL for 3D voxel clearance (comment out if not available)
 find_package(PCL QUIET COMPONENTS common search filters)
 if(PCL_FOUND)
   add_definitions(-DVFC_HAS_PCL)
@@ -44,6 +45,7 @@ set(DEPS
   nav_msgs
   geometry_msgs
   sensor_msgs
+  std_msgs
   tf2
   tf2_ros
   tf2_geometry_msgs
@@ -52,7 +54,7 @@ set(DEPS
   rcl_interfaces
 )
 
-# ── Source files ─────────────────────────────────────────────────────────────
+# ── Source files ──────────────────────────────────────────────────────────────
 set(PLUGIN_SOURCES
   # Core plugin
   src/controller.cpp
@@ -60,13 +62,13 @@ set(PLUGIN_SOURCES
   src/critic_manager.cpp
   src/parameter_handler.cpp
 
-  # GCF layer (the novel contribution)
+  # GCF layer
   src/gcf/geometric_complexity_field.cpp
   src/gcf/corridor_analyzer.cpp
   src/gcf/clutter_detector.cpp
   src/gcf/volumetric_clearance.cpp
 
-  # Critics
+  # Critics — original 7
   src/critics/obstacle_critic.cpp
   src/critics/volumetric_critic.cpp
   src/critics/dynamic_obstacle_critic.cpp
@@ -75,18 +77,28 @@ set(PLUGIN_SOURCES
   src/critics/goal_critic.cpp
   src/critics/velocity_critic.cpp
 
+  # Critics — new 3 (slots 7-9)
+  src/critics/corridor_critic.cpp
+  src/critics/clearance_critic.cpp
+  src/critics/oscillation_critic.cpp
+
   # Models
   src/models/trajectory.cpp
+  src/models/state.cpp
 
-  # Safety shell (hard, decoupled)
+  # Safety shell
   src/safety/hard_safety_shell.cpp
   src/safety/swept_volume_checker.cpp
 
-  # Tools
+  # Tools — original 4
   src/tools/noise_generator.cpp
   src/tools/velocity_scheduler.cpp
   src/tools/trajectory_visualizer.cpp
   src/tools/utils.cpp
+
+  # Tools — new 2
+  src/tools/weight_adapter.cpp
+  src/tools/data_recorder.cpp
 )
 
 # ── Build shared library ──────────────────────────────────────────────────────
@@ -105,11 +117,10 @@ endif()
 
 ament_target_dependencies(${PROJECT_NAME} ${DEPS})
 
-# Export plugin
 pluginlib_export_plugin_description_file(nav2_core vf_robot_controller.xml)
 pluginlib_export_plugin_description_file(nav2_core critics.xml)
 
-# ── Install ───────────────────────────────────────────────────────────────────
+# ── Install — C++ ─────────────────────────────────────────────────────────────
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION lib
@@ -121,6 +132,20 @@ install(DIRECTORY include/ DESTINATION include/)
 install(FILES vf_robot_controller.xml critics.xml DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
+
+# ── Install — Python ──────────────────────────────────────────────────────────
+ament_python_install_package(meta_critic)
+
+install(PROGRAMS
+  meta_critic/feature_extractor.py
+  meta_critic/inference_node.py
+  meta_critic/data_logger.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY meta_critic/models/
+  DESTINATION share/${PROJECT_NAME}/meta_critic/models
+)
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 if(BUILD_TESTING)

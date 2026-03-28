@@ -2,37 +2,52 @@
 
   <class type="vf_robot_controller::critics::ObstacleCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>2D costmap obstacle clearance critic.</description>
+    <description>2D costmap obstacle clearance critic. Slot 0.</description>
   </class>
 
   <class type="vf_robot_controller::critics::VolumetricCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>3D volumetric clearance critic for chair legs, bed frames, etc.</description>
+    <description>3D volumetric clearance critic. Slot 1.</description>
   </class>
 
   <class type="vf_robot_controller::critics::DynamicObstacleCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>Time-expanded dynamic obstacle avoidance critic.</description>
+    <description>Time-expanded dynamic obstacle avoidance critic. Slot 2.</description>
   </class>
 
   <class type="vf_robot_controller::critics::PathFollowCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>Lateral and heading alignment to global path.</description>
+    <description>Lateral and heading alignment to global path. Slot 3.</description>
   </class>
 
   <class type="vf_robot_controller::critics::SmoothnessCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>Jerk and curvature penalty for smooth motion.</description>
+    <description>Jerk and curvature penalty for smooth motion. Slot 4.</description>
   </class>
 
   <class type="vf_robot_controller::critics::GoalCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>Terminal distance and heading to goal.</description>
+    <description>Terminal distance and heading to goal. Slot 5.</description>
   </class>
 
   <class type="vf_robot_controller::critics::VelocityCritic"
          base_class_type="vf_robot_controller::critics::CriticFunction">
-    <description>Velocity limit enforcement based on GCF complexity.</description>
+    <description>Velocity limit enforcement based on GCF complexity. Slot 6.</description>
+  </class>
+
+  <class type="vf_robot_controller::critics::CorridorCritic"
+         base_class_type="vf_robot_controller::critics::CriticFunction">
+    <description>Corridor centreline alignment — cohesion group. Slot 7.</description>
+  </class>
+
+  <class type="vf_robot_controller::critics::ClearanceCritic"
+         base_class_type="vf_robot_controller::critics::CriticFunction">
+    <description>Continuous minimum clearance margin — separation group. Slot 8.</description>
+  </class>
+
+  <class type="vf_robot_controller::critics::OscillationCritic"
+         base_class_type="vf_robot_controller::critics::CriticFunction">
+    <description>Angular velocity sign-change penalty — alignment group. Slot 9.</description>
   </class>
 
 </library>

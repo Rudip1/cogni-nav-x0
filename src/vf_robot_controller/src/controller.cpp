@@ -6,6 +6,13 @@
 namespace vf_robot_controller
 {
 
+ControllerMode VFRobotController::modeFromString(const std::string & s)
+{
+  if (s == "collect")   return ControllerMode::COLLECT;
+  if (s == "inference") return ControllerMode::INFERENCE;
+  return ControllerMode::FIXED;
+}
+
 void VFRobotController::configure(
   const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
   std::string name,
@@ -31,7 +38,13 @@ void VFRobotController::configure(
 
   const auto & p = param_handler_->getParams();
 
-  // ── GCF (shared with optimizer) ───────────────────────────────────────────
+  // ── Operating mode ────────────────────────────────────────────────────────
+  mode_ = modeFromString(p.controller_mode);
+  const char * mode_str[] = {"FIXED", "COLLECT", "INFERENCE"};
+  RCLCPP_INFO(logger_, "Controller mode: %s",
+    mode_str[static_cast<int>(mode_)]);
+
+  // ── GCF ───────────────────────────────────────────────────────────────────
   gcf_ = std::make_shared<gcf::GeometricComplexityField>(p);
 
   // ── Optimizer ─────────────────────────────────────────────────────────────
@@ -43,6 +56,24 @@ void VFRobotController::configure(
 
   // ── Visualizer ────────────────────────────────────────────────────────────
   visualizer_ = std::make_unique<tools::TrajectoryVisualizer>(node, p);
+
+  // ── WeightAdapter (INFERENCE mode) ────────────────────────────────────────
+  if (mode_ == ControllerMode::INFERENCE) {
+    weight_adapter_ = std::make_unique<tools::WeightAdapter>(
+      node,
+      static_cast<int>(p.critics.size()),
+      "/vf_controller/meta_weights",
+      200.0);
+    RCLCPP_INFO(logger_, "WeightAdapter created — listening for meta-critic weights");
+  }
+
+  // ── DataRecorder (COLLECT mode) ───────────────────────────────────────────
+  if (mode_ == ControllerMode::COLLECT) {
+    data_recorder_ = std::make_unique<tools::DataRecorder>(
+      node, "/vf_controller/critic_data");
+    data_recorder_->setEnabled(true);
+    RCLCPP_INFO(logger_, "DataRecorder created — publishing critic data for training");
+  }
 
   // ── 3D pointcloud subscription ────────────────────────────────────────────
   if (p.use_3d_clearance) {
@@ -77,6 +108,8 @@ void VFRobotController::cleanup()
   gcf_.reset();
   visualizer_.reset();
   param_handler_.reset();
+  weight_adapter_.reset();
+  data_recorder_.reset();
   pcl_sub_.reset();
 }
 
@@ -88,7 +121,7 @@ void VFRobotController::setPlan(const nav_msgs::msg::Path & path)
 void VFRobotController::setSpeedLimit(
   const double & speed_limit, const bool & percentage)
 {
-  speed_limit_              = speed_limit;
+  speed_limit_               = speed_limit;
   speed_limit_is_percentage_ = percentage;
 }
 
@@ -101,7 +134,7 @@ geometry_msgs::msg::TwistStamped VFRobotController::computeVelocityCommands(
   const auto & p = param_handler_->getParams();
   auto costmap   = costmap_ros_->getCostmap();
 
-  // ── Get latest 3D data thread-safely ─────────────────────────────────────
+  // ── Snapshot pointcloud thread-safely ────────────────────────────────────
   sensor_msgs::msg::PointCloud2::SharedPtr pcl_snap;
   {
     std::lock_guard<std::mutex> lock(pcl_mutex_);
@@ -109,10 +142,14 @@ geometry_msgs::msg::TwistStamped VFRobotController::computeVelocityCommands(
   }
 
   // ── Update GCF ────────────────────────────────────────────────────────────
-  // GCF update runs at gcf_update_rate — the field self-throttles internally
   const double yaw = tools::poseYaw(pose);
   gcf_->update(costmap, pcl_snap,
     pose.pose.position.x, pose.pose.position.y, yaw);
+
+  // ── Push dynamic weights into optimizer (INFERENCE mode) ──────────────────
+  if (mode_ == ControllerMode::INFERENCE && weight_adapter_) {
+    optimizer_->setDynamicWeights(weight_adapter_->getWeights());
+  }
 
   // ── Run optimizer ─────────────────────────────────────────────────────────
   geometry_msgs::msg::Twist raw_cmd = optimizer_->optimize(
@@ -123,22 +160,42 @@ geometry_msgs::msg::TwistStamped VFRobotController::computeVelocityCommands(
     raw_cmd.linear.x  *= speed_limit_;
     raw_cmd.angular.z *= speed_limit_;
   } else {
-    raw_cmd.linear.x  = std::min(raw_cmd.linear.x,  speed_limit_);
+    raw_cmd.linear.x = std::min(raw_cmd.linear.x, speed_limit_);
   }
 
-  // ── Hard safety shell — DECOUPLED veto ────────────────────────────────────
+  // ── Hard safety shell — DECOUPLED veto ───────────────────────────────────
   geometry_msgs::msg::Twist safe_cmd = safety_shell_->check(
     raw_cmd, pose, costmap, pcl_snap);
 
   if (safety_shell_->lastCheckVetoed()) {
-    RCLCPP_WARN(logger_,
-      "HardSafetyShell VETO — consecutive: %d",
+    RCLCPP_WARN(logger_, "HardSafetyShell VETO — consecutive: %d",
       safety_shell_->consecutiveVetoes());
     if (p.visualize_trajectories) {
       visualizer_->publishSafetyShellVeto(
         pose.pose.position.x, pose.pose.position.y, yaw,
         costmap_ros_->getGlobalFrameID());
     }
+  }
+
+  // ── DataRecorder (COLLECT mode) ───────────────────────────────────────────
+  if (mode_ == ControllerMode::COLLECT && data_recorder_) {
+    // goal distance and heading — use last pose of global plan
+    double goal_dist = 0.0, goal_heading = 0.0;
+    if (!global_plan_.poses.empty()) {
+      const auto & gp = global_plan_.poses.back().pose.position;
+      const double dx = gp.x - pose.pose.position.x;
+      const double dy = gp.y - pose.pose.position.y;
+      goal_dist    = std::hypot(dx, dy);
+      goal_heading = std::atan2(dy, dx) - yaw;
+    }
+
+    data_recorder_->record(
+      pose, velocity,
+      goal_dist, goal_heading,
+      optimizer_->sampleCosts(),
+      p.num_samples,
+      static_cast<int>(p.critics.size()),
+      0);  // best_idx: optimizer doesn't expose it yet — placeholder
   }
 
   // ── Visualization ─────────────────────────────────────────────────────────
