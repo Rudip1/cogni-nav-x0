@@ -22,18 +22,24 @@
 # Node graph:
 #   gzserver + gzclient       → Gazebo simulation
 #   vf_spawn_sdf              → spawns robot from model.sdf
-#   vf_robot_state_publisher  → publishes TF tree from URDF (needed by RViz)
+#   vf_robot_state_publisher  → publishes TF tree from xacro (needed by RViz)
 #   rqt_robot_steering        → teleop GUI
 #   rviz2                     → visualisation
 #
-# FIXED: Added robot_state_publisher — without it RViz has no TF tree.
+# WHY robot_state_publisher:
+#   Gazebo diff drive publishes odom→base_footprint only.
+#   RSP publishes base_footprint→base_link→all sensor/wheel frames.
 #
 # Run:  ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
 
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -44,15 +50,66 @@ def generate_launch_description():
     pkg_gazebo_ros = get_package_share_directory("gazebo_ros")
     launch_dir = os.path.join(pkg_vf_gazebo, "launch")
 
-    use_sim_time = LaunchConfiguration("use_sim_time", default="true")
-    x_pose = LaunchConfiguration("x_pose", default="9.0")
-    y_pose = LaunchConfiguration("y_pose", default="0.5")
-    theta = LaunchConfiguration("theta", default="3.14")
+    # ── Launch arguments ───────────────────────────────────────────────────
+    declare_use_sim_time = DeclareLaunchArgument(
+        "use_sim_time",
+        default_value="true",
+        description="Use simulation (Gazebo) clock",
+    )
+    declare_x_pose = DeclareLaunchArgument(
+        "x_pose",
+        default_value="9.0",
+        description="X spawn position",
+    )
+    declare_y_pose = DeclareLaunchArgument(
+        "y_pose",
+        default_value="0.5",
+        description="Y spawn position",
+    )
+    declare_theta = DeclareLaunchArgument(
+        "theta",
+        default_value="3.14",
+        description="Yaw spawn angle (radians)",
+    )
+
+    use_sim_time = LaunchConfiguration("use_sim_time")
+    x_pose = LaunchConfiguration("x_pose")
+    y_pose = LaunchConfiguration("y_pose")
+    theta = LaunchConfiguration("theta")
 
     world = os.path.join(pkg_vf_gazebo, "worlds", "my_world.world")
     rviz_config = os.path.join(pkg_vf_gazebo, "rviz", "vf_robot_gazebo.rviz")
 
-    # ── Gazebo server + client ────────────────────────────────────────────
+    # ── Environment variables — PREPEND, never replace ────────────────────
+    gazebo_model_path = SetEnvironmentVariable(
+        name="GAZEBO_MODEL_PATH",
+        value=os.pathsep.join(
+            [
+                os.path.join(pkg_vf_gazebo, "models"),
+                "/usr/share/gazebo-11/models",
+            ]
+        ),
+    )
+    gazebo_plugin_path = SetEnvironmentVariable(
+        name="GAZEBO_PLUGIN_PATH",
+        value=os.pathsep.join(
+            [
+                "/opt/ros/humble/lib",
+                "/usr/lib/x86_64-linux-gnu/gazebo-11/plugins",
+            ]
+        ),
+    )
+    gazebo_resource_path = SetEnvironmentVariable(
+        name="GAZEBO_RESOURCE_PATH",
+        value=os.pathsep.join(
+            [
+                "/usr/share/gazebo-11",
+                "/opt/ros/humble/share",
+            ]
+        ),
+    )
+
+    # ── Gazebo server + client ─────────────────────────────────────────────
     gzserver_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_ros, "launch", "gzserver.launch.py")
@@ -65,7 +122,7 @@ def generate_launch_description():
         )
     )
 
-    # ── Spawn robot from SDF ──────────────────────────────────────────────
+    # ── Spawn robot from SDF ───────────────────────────────────────────────
     spawn_robot_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_dir, "vf_spawn_sdf.launch.py")
@@ -77,10 +134,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    # ── Robot state publisher — publishes TF tree from URDF ───────────────
-    # FIXED: SDF mode still needs RSP for RViz TF.
-    # Gazebo publishes odom→base_footprint (diff drive plugin).
-    # RSP publishes base_footprint→base_link→all sensor/wheel frames.
+    # ── Robot state publisher — publishes TF tree from xacro ───────────────
     robot_state_publisher_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_dir, "vf_robot_state_publisher.launch.py")
@@ -88,7 +142,7 @@ def generate_launch_description():
         launch_arguments={"use_sim_time": use_sim_time}.items(),
     )
 
-    # ── Teleop GUI ────────────────────────────────────────────────────────
+    # ── Teleop GUI ─────────────────────────────────────────────────────────
     gui_teleop_node = Node(
         package="rqt_robot_steering",
         executable="rqt_robot_steering",
@@ -97,7 +151,7 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
-    # ── RViz ─────────────────────────────────────────────────────────────
+    # ── RViz ───────────────────────────────────────────────────────────────
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -108,10 +162,24 @@ def generate_launch_description():
     )
 
     ld = LaunchDescription()
+
+    # Declare arguments first
+    ld.add_action(declare_use_sim_time)
+    ld.add_action(declare_x_pose)
+    ld.add_action(declare_y_pose)
+    ld.add_action(declare_theta)
+
+    # Environment variables MUST be set before gzserver starts
+    ld.add_action(gazebo_model_path)
+    ld.add_action(gazebo_plugin_path)
+    ld.add_action(gazebo_resource_path)
+
+    # Launch sequence
     ld.add_action(gzserver_cmd)
     ld.add_action(gzclient_cmd)
-    ld.add_action(robot_state_publisher_cmd)  # ← ADDED
+    ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_robot_cmd)
     ld.add_action(gui_teleop_node)
     ld.add_action(rviz_node)
+
     return ld

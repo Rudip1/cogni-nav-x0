@@ -38,8 +38,6 @@
 # Run standalone:
 #   ros2 launch vf_robot_gazebo vf_robot_state_publisher.launch.py
 
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import (
@@ -56,39 +54,48 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
 
     # xacro path — urdf/xacro/ subfolder layout
-    xacro_path = PathJoinSubstitution([
-        FindPackageShare('vf_robot_description'),
-        'urdf', 'xacro',
-        'uvc1_virofighter.xacro',
-    ])
+    xacro_path = PathJoinSubstitution(
+        [
+            FindPackageShare("vf_robot_description"),
+            "urdf",
+            "xacro",
+            "uvc1_virofighter.xacro",
+        ]
+    )
 
-    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    use_sim_time = LaunchConfiguration("use_sim_time", default="true")
 
     # ParameterValue with value_type=str prevents ROS2 Humble from trying
     # to parse the URDF XML output as YAML (which causes a launch crash).
     robot_description_content = ParameterValue(
-        Command([
-            FindExecutable(name='xacro'),
-            ' ',
-            xacro_path,
-        ]),
+        Command(
+            [
+                FindExecutable(name="xacro"),
+                " ",
+                xacro_path,
+            ]
+        ),
         value_type=str,
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            'use_sim_time',
-            default_value='true',
-            description='Use simulation (Gazebo) clock if true',
-        ),
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                'robot_description': robot_description_content,
-            }],
-        ),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "use_sim_time",
+                default_value="true",
+                description="Use simulation (Gazebo) clock if true",
+            ),
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="robot_state_publisher",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "robot_description": robot_description_content,
+                    }
+                ],
+            ),
+        ]
+    )

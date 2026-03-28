@@ -31,25 +31,45 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    x_pose = LaunchConfiguration('x_pose', default='0.0')
-    y_pose = LaunchConfiguration('y_pose', default='0.0')
-    theta  = LaunchConfiguration('theta',  default='0.0')
+    x_pose = LaunchConfiguration("x_pose", default="0.0")
+    y_pose = LaunchConfiguration("y_pose", default="0.0")
+    theta = LaunchConfiguration("theta", default="0.0")
 
-    return LaunchDescription([
-        DeclareLaunchArgument('x_pose', default_value='0.0', description='X spawn position'),
-        DeclareLaunchArgument('y_pose', default_value='0.0', description='Y spawn position'),
-        DeclareLaunchArgument('theta',  default_value='0.0', description='Yaw spawn angle (radians)'),
-        Node(
-            package='gazebo_ros',
-            executable='spawn_entity.py',
-            arguments=[
-                '-entity', 'vf_virofighter',
-                '-topic', 'robot_description',  # reads /robot_description from RSP
-                '-x', x_pose,
-                '-y', y_pose,
-                '-z', '0.1',
-                '-Y', theta,
-            ],
-            output='screen',
-        ),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "x_pose",
+                default_value="0.0",
+                description="X spawn position",
+            ),
+            DeclareLaunchArgument(
+                "y_pose",
+                default_value="0.0",
+                description="Y spawn position",
+            ),
+            DeclareLaunchArgument(
+                "theta",
+                default_value="0.0",
+                description="Yaw spawn angle (radians)",
+            ),
+            Node(
+                package="gazebo_ros",
+                executable="spawn_entity.py",
+                arguments=[
+                    "-entity",
+                    "vf_virofighter",
+                    "-topic",
+                    "robot_description",  # reads /robot_description from RSP
+                    "-x",
+                    x_pose,
+                    "-y",
+                    y_pose,
+                    "-z",
+                    "0.1",
+                    "-Y",
+                    theta,
+                ],
+                output="screen",
+            ),
+        ]
+    )

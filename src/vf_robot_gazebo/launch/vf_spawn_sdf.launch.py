@@ -16,11 +16,14 @@
 #
 # Authors: Pravin Oli
 # https://www.euroknows.com/en/home/
-
-# ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py
+#
+# Spawns the robot directly from the SDF file stored inside this package.
+# Does NOT require robot_state_publisher to be running first.
+# Note: joint_states will still be published by the Gazebo plugin.
+#
+# Run:  ros2 launch vf_robot_gazebo vf_spawn_sdf.launch.py
 
 import os
-
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -29,11 +32,6 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """
-    Spawns the robot directly from the SDF file stored inside this package.
-    Does NOT require robot_state_publisher to be running first.
-    Note: joint_states will still be published by the Gazebo plugin.
-    """
 
     sdf_path = os.path.join(
         get_package_share_directory("vf_robot_gazebo"),
@@ -49,13 +47,19 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "x_pose", default_value="0.0", description="X spawn position"
+                "x_pose",
+                default_value="0.0",
+                description="X spawn position",
             ),
             DeclareLaunchArgument(
-                "y_pose", default_value="0.0", description="Y spawn position"
+                "y_pose",
+                default_value="0.0",
+                description="Y spawn position",
             ),
             DeclareLaunchArgument(
-                "theta", default_value="0.0", description="Yaw spawn angle (radians)"
+                "theta",
+                default_value="0.0",
+                description="Yaw spawn angle (radians)",
             ),
             Node(
                 package="gazebo_ros",
