@@ -51,6 +51,24 @@ public:
     const sensor_msgs::msg::PointCloud2::SharedPtr & pointcloud) const;
 
   /**
+   * @brief Per-critic score matrix for COLLECT mode data recording.
+   *
+   * Returns flat vector size N*K, row-major: [traj0_c0, traj0_c1...traj0_cK, traj1_c0...]
+   * Dynamic weights are applied (same as scoreSingle).
+   * Called ONCE after the MPPI loop — NOT inside it. Zero impact on runtime performance.
+   * Used by Optimizer::perCriticScores() which is consumed by DataRecorder.
+   * Both IMITATION and META_CRITIC training methods read this matrix.
+   */
+  std::vector<double> scoreAllPerCritic(
+    const std::vector<models::BSplineTrajectory> & trajectories,
+    const std::vector<models::StateSequence> & rollouts,
+    const nav2_costmap_2d::Costmap2D * costmap,
+    const std::shared_ptr<gcf::GeometricComplexityField> & gcf,
+    const nav_msgs::msg::Path * global_plan,
+    const geometry_msgs::msg::PoseStamped * goal,
+    const sensor_msgs::msg::PointCloud2::SharedPtr & pointcloud) const;
+
+  /**
    * @brief Score a single trajectory (used by safety shell check).
    * Uses current dynamic_weights_.
    */

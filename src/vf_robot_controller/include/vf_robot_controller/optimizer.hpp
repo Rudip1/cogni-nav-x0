@@ -59,6 +59,19 @@ public:
   { return sampled_trajectories_; }
   const std::vector<double> & sampleCosts() const { return sample_costs_; }
 
+  /**
+   * @brief Per-critic score matrix after last MPPI loop — for COLLECT mode.
+   * Size: N*K flat row-major. Computed once after all iterations complete.
+   * Both IMITATION and META_CRITIC training methods consume this.
+   */
+  const std::vector<double> & perCriticScores() const { return per_critic_scores_; }
+
+  /**
+   * @brief Index of best trajectory = argmin(sample_costs_) after last MPPI loop.
+   * Replaces the hardcoded 0 placeholder in controller.cpp data recording.
+   */
+  int bestTrajectoryIdx() const { return best_trajectory_idx_; }
+
 private:
   models::BSplineTrajectory buildBaseTrajectory(
     const std::vector<Eigen::Vector2d> & waypoints,
@@ -82,6 +95,12 @@ private:
   models::BSplineTrajectory              best_trajectory_;
   std::vector<models::BSplineTrajectory> sampled_trajectories_;
   std::vector<double>                    sample_costs_;
+
+  // ── COLLECT mode recording state (populated once after MPPI loop) ──────────
+  // per_critic_scores_: N*K flat matrix [traj_i * K + critic_k]
+  // best_trajectory_idx_: argmin(sample_costs_) — real label for training
+  std::vector<double> per_critic_scores_;
+  int                 best_trajectory_idx_{0};
 
   const Parameters * params_{nullptr};
   rclcpp::Logger logger_{rclcpp::get_logger("VFOptimizer")};

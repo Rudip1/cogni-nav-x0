@@ -41,6 +41,9 @@ controller_server:
         - "SmoothnessCritic"
         - "GoalCritic"
         - "VelocityCritic"
+        - "CorridorCritic"   # slot 7 — cohesion group
+        - "ClearanceCritic"  # slot 8 — separation group
+        - "OscillationCritic" # slot 9 — alignment group
       obstacle_weight_open: 1.0
       obstacle_weight_tight: 2.5
       path_follow_weight_open: 1.5

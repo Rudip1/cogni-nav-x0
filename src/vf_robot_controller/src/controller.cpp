@@ -192,10 +192,10 @@ geometry_msgs::msg::TwistStamped VFRobotController::computeVelocityCommands(
     data_recorder_->record(
       pose, velocity,
       goal_dist, goal_heading,
-      optimizer_->sampleCosts(),
+      optimizer_->perCriticScores(),          // N*K matrix — real per-critic scores
       p.num_samples,
       static_cast<int>(p.critics.size()),
-      0);  // best_idx: optimizer doesn't expose it yet — placeholder
+      optimizer_->bestTrajectoryIdx());        // real argmin, not placeholder 0
   }
 
   // ── Visualization ─────────────────────────────────────────────────────────

@@ -121,6 +121,25 @@ geometry_msgs::msg::Twist Optimizer::optimize(
     }
   }
 
+  // ── Step 11: Record per-critic matrix + best_idx for COLLECT mode ──────────
+  // Called ONCE after all MPPI iterations — zero impact on loop performance.
+  // per_critic_scores_: N*K flat matrix consumed by DataRecorder → HDF5
+  // best_trajectory_idx_: real argmin label for both IMITATION and META_CRITIC training
+  {
+    std::vector<models::StateSequence> final_rollouts(sampled_trajectories_.size());
+    for (size_t s = 0; s < sampled_trajectories_.size(); ++s) {
+      final_rollouts[s] = rollout(sampled_trajectories_[s], pose, current_vel);
+    }
+    per_critic_scores_ = critic_manager_->scoreAllPerCritic(
+      sampled_trajectories_, final_rollouts,
+      costmap, gcf_, &global_plan, &goal_pose, pointcloud);
+  }
+
+  // argmin(sample_costs_) — lowest cost = best trajectory
+  best_trajectory_idx_ = static_cast<int>(
+    std::distance(sample_costs_.begin(),
+      std::min_element(sample_costs_.begin(), sample_costs_.end())));
+
   // ── Step 12: Convert to velocity command ─────────────────────────────────
   return trajectoryToCmd(best_trajectory_, pose, v_max);
 }

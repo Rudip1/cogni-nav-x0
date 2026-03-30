@@ -1,4 +1,5 @@
 #include "vf_robot_controller/tools/data_recorder.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include <tf2/utils.h>
 
 namespace vf_robot_controller::tools

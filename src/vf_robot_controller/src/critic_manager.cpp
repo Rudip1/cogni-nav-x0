@@ -125,6 +125,46 @@ std::vector<double> CriticManager::scoreAll(
   return costs;
 }
 
+std::vector<double> CriticManager::scoreAllPerCritic(
+  const std::vector<models::BSplineTrajectory> & trajectories,
+  const std::vector<models::StateSequence> & rollouts,
+  const nav2_costmap_2d::Costmap2D * costmap,
+  const std::shared_ptr<gcf::GeometricComplexityField> & gcf,
+  const nav_msgs::msg::Path * global_plan,
+  const geometry_msgs::msg::PoseStamped * goal,
+  const sensor_msgs::msg::PointCloud2::SharedPtr & pointcloud) const
+{
+  const int N = static_cast<int>(trajectories.size());
+  const int K = static_cast<int>(critics_.size());
+
+  // Result: N*K flat row-major matrix
+  // [traj0_critic0, traj0_critic1...traj0_criticK, traj1_critic0...]
+  std::vector<double> matrix(N * K, 0.0);
+
+  // Snapshot weights once — same weights applied to all trajectories
+  std::vector<float> w;
+  {
+    std::lock_guard<std::mutex> lock(weights_mutex_);
+    w = dynamic_weights_;
+  }
+
+  for (int i = 0; i < N; ++i) {
+    const auto & rollout = (i < static_cast<int>(rollouts.size())) ?
+      rollouts[i] : models::StateSequence{};
+
+    const auto data = buildData(
+      trajectories[i], rollout, costmap, gcf, global_plan, goal, pointcloud);
+
+    for (int k = 0; k < K; ++k) {
+      // Apply dynamic weight per critic — same logic as scoreSingle()
+      const double dyn_w = (k < static_cast<int>(w.size())) ?
+        static_cast<double>(w[k]) : 1.0;
+      matrix[i * K + k] = dyn_w * critics_[k]->score(data);
+    }
+  }
+  return matrix;
+}
+
 double CriticManager::scoreSingle(
   const models::BSplineTrajectory & traj,
   const models::StateSequence & rollout,

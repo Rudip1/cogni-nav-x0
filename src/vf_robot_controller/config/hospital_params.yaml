@@ -53,6 +53,9 @@ controller_server:
         - "SmoothnessCritic"
         - "GoalCritic"
         - "VelocityCritic"
+        - "CorridorCritic"   # slot 7 — cohesion group
+        - "ClearanceCritic"  # slot 8 — separation group
+        - "OscillationCritic" # slot 9 — alignment group
 
       # ── Critic weight adaptation driven by GCF ────────────────────────────
       obstacle_weight_open: 1.0

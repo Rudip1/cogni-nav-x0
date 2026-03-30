@@ -116,6 +116,7 @@ if(PCL_FOUND)
 endif()
 
 ament_target_dependencies(${PROJECT_NAME} ${DEPS})
+target_link_libraries(${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
 
 pluginlib_export_plugin_description_file(nav2_core vf_robot_controller.xml)
 pluginlib_export_plugin_description_file(nav2_core critics.xml)
@@ -155,23 +156,23 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   ament_add_gtest(test_gcf test/test_gcf.cpp)
-  target_link_libraries(test_gcf ${PROJECT_NAME})
+  target_link_libraries(test_gcf ${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
   ament_target_dependencies(test_gcf ${DEPS})
 
   ament_add_gtest(test_critics test/test_critics.cpp)
-  target_link_libraries(test_critics ${PROJECT_NAME})
+  target_link_libraries(test_critics ${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
   ament_target_dependencies(test_critics ${DEPS})
 
   ament_add_gtest(test_trajectory test/test_trajectory.cpp)
-  target_link_libraries(test_trajectory ${PROJECT_NAME})
+  target_link_libraries(test_trajectory ${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
   ament_target_dependencies(test_trajectory ${DEPS})
 
   ament_add_gtest(test_safety test/test_safety.cpp)
-  target_link_libraries(test_safety ${PROJECT_NAME})
+  target_link_libraries(test_safety ${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
   ament_target_dependencies(test_safety ${DEPS})
 
   ament_add_gtest(test_optimizer test/test_optimizer.cpp)
-  target_link_libraries(test_optimizer ${PROJECT_NAME})
+  target_link_libraries(test_optimizer ${PROJECT_NAME} tf2_geometry_msgs::tf2_geometry_msgs)
   ament_target_dependencies(test_optimizer ${DEPS})
 endif()
 
