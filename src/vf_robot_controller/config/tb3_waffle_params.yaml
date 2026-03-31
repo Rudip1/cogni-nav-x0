@@ -120,6 +120,61 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 #     progress_checker_plugin: "progress_checker"
 #     goal_checker_plugins: ["general_goal_checker"] # "precise_goal_checker"
 #     controller_plugins: ["FollowPath"]
+    VFController:
+      plugin: "vf_robot_controller::VFRobotController"
+      controller_mode: "fixed"
+      num_samples: 200
+      num_iterations: 2
+      horizon_time: 2.0
+      control_frequency: 20.0
+      temperature: 0.5
+      spline_degree: 3
+      min_knots: 4
+      max_knots: 12
+      gcf_radius: 2.0
+      gcf_weight_2d: 0.5
+      gcf_weight_clutter: 0.25
+      gcf_weight_volumetric: 0.25
+      gcf_clutter_radius: 0.8
+      gcf_update_rate: 10.0
+      robot_length: 0.28
+      robot_width: 0.16
+      robot_height_min: 0.05
+      robot_height_max: 0.4
+      safety_inflation: 0.05
+      max_vel_x: 0.26
+      min_vel_x: 0.05
+      max_vel_theta: 1.0
+      min_vel_theta: 0.0
+      max_speed_in_tight: 0.1
+      tight_gcf_threshold: 0.6
+      acc_lim_x: 0.5
+      acc_lim_theta: 1.5
+      critics:
+        - "ObstacleCritic"
+        - "VolumetricCritic"
+        - "DynamicObstacleCritic"
+        - "PathFollowCritic"
+        - "SmoothnessCritic"
+        - "GoalCritic"
+        - "VelocityCritic"
+        - "CorridorCritic"
+        - "ClearanceCritic"
+        - "OscillationCritic"
+      obstacle_weight_open: 1.0
+      obstacle_weight_tight: 2.5
+      path_follow_weight_open: 1.5
+      path_follow_weight_tight: 0.6
+      noise_sigma_x: 0.12
+      noise_sigma_theta: 0.25
+      visualize_trajectories: false
+      visualize_gcf: false
+      visualize_max_trajectories: 0
+      pointcloud_topic: "/scan_3d"
+      use_3d_clearance: false
+      ClearanceCritic.desired_clearance: 0.6
+      ClearanceCritic.samples: 10
+      ObstacleCritic.repulsion_radius: 0.6
 
 #     # Progress checker parameters
 #     progress_checker:
@@ -190,6 +245,58 @@ controller_server:
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
+    VFController:
+      plugin: "vf_robot_controller::VFRobotController"
+      controller_mode: "fixed"
+      num_samples: 200
+      num_iterations: 2
+      horizon_time: 2.0
+      control_frequency: 20.0
+      temperature: 0.5
+      spline_degree: 3
+      min_knots: 4
+      max_knots: 12
+      gcf_radius: 2.0
+      gcf_weight_2d: 0.5
+      gcf_weight_clutter: 0.25
+      gcf_weight_volumetric: 0.25
+      gcf_clutter_radius: 0.8
+      gcf_update_rate: 10.0
+      robot_length: 0.28
+      robot_width: 0.16
+      robot_height_min: 0.05
+      robot_height_max: 0.4
+      safety_inflation: 0.05
+      max_vel_x: 0.26
+      min_vel_x: 0.05
+      max_vel_theta: 1.0
+      min_vel_theta: 0.0
+      max_speed_in_tight: 0.1
+      tight_gcf_threshold: 0.6
+      acc_lim_x: 0.5
+      acc_lim_theta: 1.5
+      critics:
+        - "ObstacleCritic"
+        - "VolumetricCritic"
+        - "DynamicObstacleCritic"
+        - "PathFollowCritic"
+        - "SmoothnessCritic"
+        - "GoalCritic"
+        - "VelocityCritic"
+        - "CorridorCritic"
+        - "ClearanceCritic"
+        - "OscillationCritic"
+      obstacle_weight_open: 1.0
+      obstacle_weight_tight: 2.5
+      path_follow_weight_open: 1.5
+      path_follow_weight_tight: 0.6
+      noise_sigma_x: 0.12
+      noise_sigma_theta: 0.25
+      visualize_trajectories: false
+      visualize_gcf: false
+      visualize_max_trajectories: 0
+      pointcloud_topic: "/scan_3d"
+      use_3d_clearance: false
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
@@ -254,6 +361,9 @@ controller_server:
         - "SmoothnessCritic"
         - "GoalCritic"
         - "VelocityCritic"
+        - "CorridorCritic"
+        - "ClearanceCritic"
+        - "OscillationCritic"
 
       obstacle_weight_open: 1.0
       obstacle_weight_tight: 2.5

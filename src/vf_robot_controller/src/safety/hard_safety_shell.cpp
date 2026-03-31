@@ -37,7 +37,45 @@ geometry_msgs::msg::Twist HardSafetyShell::check(
       blocked_2d ? "2D " : "",
       blocked_3d ? "3D" : "",
       consecutive_vetoes_);
-    return geometry_msgs::msg::Twist{};  // zero twist
+
+    // Escape mechanism — only activates after 5 consecutive vetoes
+    // Tries all escape directions, picks first safe one
+    // If all fail, robot is truly trapped — let BT recovery handle it
+    if (consecutive_vetoes_ > 5) {
+      // Candidate escape velocities: back, forward, turn-left, turn-right
+      std::vector<geometry_msgs::msg::Twist> candidates;
+      geometry_msgs::msg::Twist t;
+
+      t = geometry_msgs::msg::Twist{};
+      t.linear.x = -0.05;  // backward
+      candidates.push_back(t);
+
+      t = geometry_msgs::msg::Twist{};
+      t.linear.x = 0.05;   // forward
+      candidates.push_back(t);
+
+      t = geometry_msgs::msg::Twist{};
+      t.angular.z = 0.3;   // turn left
+      candidates.push_back(t);
+
+      t = geometry_msgs::msg::Twist{};
+      t.angular.z = -0.3;  // turn right
+      candidates.push_back(t);
+
+      for (const auto & candidate : candidates) {
+        if (safe) {
+          RCLCPP_WARN(SAFETY_LOG,
+            "Safety escape: vx=%.2f wz=%.2f",
+            candidate.linear.x, candidate.angular.z);
+          return candidate;
+        }
+      }
+
+      // All directions blocked — truly trapped, stop and let BT recover
+      RCLCPP_WARN(SAFETY_LOG,
+        "Safety shell: all escape directions blocked — waiting for BT recovery");
+    }
+    return geometry_msgs::msg::Twist{};
   }
 
   last_vetoed_ = false;
@@ -73,7 +111,7 @@ bool HardSafetyShell::checkSweptVolume2D(
     const unsigned char cost = costmap->getCost(
       static_cast<unsigned int>(cell.mx),
       static_cast<unsigned int>(cell.my));
-    if (cost >= nav2_costmap_2d::LETHAL_OBSTACLE) return true;
+    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE) return true;
   }
   return false;
 }
