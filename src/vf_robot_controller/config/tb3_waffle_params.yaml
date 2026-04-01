@@ -122,7 +122,7 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 #     controller_plugins: ["FollowPath"]
     VFController:
       plugin: "vf_robot_controller::VFRobotController"
-      controller_mode: "fixed"
+      controller_mode: "inference"
       num_samples: 200
       num_iterations: 2
       horizon_time: 2.0
@@ -249,7 +249,7 @@ controller_server:
     controller_plugins: ["FollowPath"]
     VFController:
       plugin: "vf_robot_controller::VFRobotController"
-      controller_mode: "fixed"
+      controller_mode: "inference"
       num_samples: 200
       num_iterations: 2
       horizon_time: 2.0
@@ -313,6 +313,7 @@ controller_server:
 
     FollowPath:
       plugin: "vf_robot_controller::VFRobotController"
+      controller_mode: "inference"
 
       # ── Optimizer ──────────────────────────────────────────────────────
       num_samples: 300

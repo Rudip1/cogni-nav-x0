@@ -86,6 +86,29 @@ void ParameterHandler::declareAndGet(
   DECLARE_GET(node, prefix, pointcloud_topic, std::string("/scan_3d"));
   DECLARE_GET(node, prefix, use_3d_clearance, true);
   DECLARE_GET(node, prefix, controller_mode, std::string("fixed"));
+
+  // ── Critics list ────────────────────────────────────────────────────────────
+  // Default: all 10 critics in correct slot order
+  const std::vector<std::string> default_critics = {
+    "ObstacleCritic",
+    "VolumetricCritic",
+    "DynamicObstacleCritic",
+    "PathFollowCritic",
+    "SmoothnessCritic",
+    "GoalCritic",
+    "VelocityCritic",
+    "CorridorCritic",
+    "ClearanceCritic",
+    "OscillationCritic"
+  };
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + ".critics", rclcpp::ParameterValue(default_critics));
+  params_.critics = node->get_parameter(prefix + ".critics")
+    .get_value<std::vector<std::string>>();
+
+  RCLCPP_INFO(node->get_logger(),
+    "ParameterHandler: loaded %zu critics from config", params_.critics.size());
 }
 
 rcl_interfaces::msg::SetParametersResult

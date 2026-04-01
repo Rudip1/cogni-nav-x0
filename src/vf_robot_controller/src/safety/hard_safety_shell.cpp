@@ -63,6 +63,7 @@ geometry_msgs::msg::Twist HardSafetyShell::check(
       candidates.push_back(t);
 
       for (const auto & candidate : candidates) {
+        const bool safe = !checkSweptVolume2D(candidate, pose, costmap);
         if (safe) {
           RCLCPP_WARN(SAFETY_LOG,
             "Safety escape: vx=%.2f wz=%.2f",

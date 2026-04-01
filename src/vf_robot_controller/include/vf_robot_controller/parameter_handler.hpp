@@ -56,6 +56,11 @@ struct Parameters
   double acc_lim_theta{1.5};
 
   // ── Critics ───────────────────────────────────────────────────────────────
+  // Slot order (0-9) must match critics.xml and meta-critic network output:
+  //   0 ObstacleCritic      1 VolumetricCritic     2 DynamicObstacleCritic
+  //   3 PathFollowCritic    4 SmoothnessCritic     5 GoalCritic
+  //   6 VelocityCritic      7 CorridorCritic       8 ClearanceCritic
+  //   9 OscillationCritic
   std::vector<std::string> critics{
     "ObstacleCritic",
     "VolumetricCritic",
@@ -63,7 +68,10 @@ struct Parameters
     "PathFollowCritic",
     "SmoothnessCritic",
     "GoalCritic",
-    "VelocityCritic"
+    "VelocityCritic",
+    "CorridorCritic",
+    "ClearanceCritic",
+    "OscillationCritic"
   };
 
   // Dynamic critic weight adaptation (driven by GCF)
