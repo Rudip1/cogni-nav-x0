@@ -7,26 +7,18 @@ log/
 src/navigation2/
 src/rtabmap/
 
-# IDE
-.vscode/
-
-# Misc
-*.zip
-
-# ROS2 build
-build/
-install/
-log/
-
 #maps
 maps/
 
-# External packages
-src/navigation2/
-src/rtabmap/
+# IDE
+.vscode/
 
 # Archives
 *.zip
+*.gv
+*.pdf
+*.bak
+* copy.yaml
 
 # Big data
 *.bag
@@ -34,9 +26,6 @@ src/rtabmap/
 *.sqlite
 *.ply
 *.pcd
-
-# IDE
-.vscode/
 
 # Training artifacts (don't commit large files)
 data/
