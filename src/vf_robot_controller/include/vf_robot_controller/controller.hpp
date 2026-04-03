@@ -34,13 +34,17 @@ namespace vf_robot_controller
  *
  *   COLLECT   : fixed weights + DataRecorder active.
  *               Publishes critic data to /vf_controller/critic_data.
- *               Run data_logger.py alongside to write HDF5 training data.
+ *               Run meta_critic_data_logger.py alongside to write HDF5 data.
  *
  *   INFERENCE : WeightAdapter active, receives dynamic weights from
- *               inference_node.py via /vf_controller/meta_weights.
+ *               meta_critic_inference_node.py via /vf_controller/meta_weights.
  *               Falls back to YAML weights if Python node is absent.
+ *
+ *   PASSIVE   : satisfies Nav2 action server but returns zero velocity.
+ *               Python imitation_inference_node.py owns /cmd_vel directly.
+ *               Use for imitation model live deployment.
  */
-enum class ControllerMode { FIXED, COLLECT, INFERENCE };
+enum class ControllerMode { FIXED, COLLECT, INFERENCE, PASSIVE };
 
 class VFRobotController : public nav2_core::Controller
 {

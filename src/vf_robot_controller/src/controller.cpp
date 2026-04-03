@@ -10,6 +10,7 @@ ControllerMode VFRobotController::modeFromString(const std::string & s)
 {
   if (s == "collect")   return ControllerMode::COLLECT;
   if (s == "inference") return ControllerMode::INFERENCE;
+  if (s == "passive")   return ControllerMode::PASSIVE;
   return ControllerMode::FIXED;
 }
 
@@ -40,7 +41,7 @@ void VFRobotController::configure(
 
   // ── Operating mode ────────────────────────────────────────────────────────
   mode_ = modeFromString(p.controller_mode);
-  const char * mode_str[] = {"FIXED", "COLLECT", "INFERENCE"};
+  const char * mode_str[] = {"FIXED", "COLLECT", "INFERENCE", "PASSIVE"};
   RCLCPP_INFO(logger_, "Controller mode: %s",
     mode_str[static_cast<int>(mode_)]);
 
@@ -146,6 +147,13 @@ geometry_msgs::msg::TwistStamped VFRobotController::computeVelocityCommands(
   gcf_->update(costmap, pcl_snap,
     pose.pose.position.x, pose.pose.position.y, yaw);
 
+  // ── PASSIVE mode — return zero twist, Python node owns /cmd_vel ───────────
+  if (mode_ == ControllerMode::PASSIVE) {
+    geometry_msgs::msg::TwistStamped zero;
+    zero.header.stamp    = node->now();
+    zero.header.frame_id = costmap_ros_->getBaseFrameID();
+    return zero;
+  }
   // ── Push dynamic weights into optimizer (INFERENCE mode) ──────────────────
   if (mode_ == ControllerMode::INFERENCE && weight_adapter_) {
     optimizer_->setDynamicWeights(weight_adapter_->getWeights());

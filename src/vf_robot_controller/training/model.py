@@ -89,3 +89,56 @@ if __name__ == '__main__':
     assert w.shape == (4, 10), 'shape mismatch'
     assert torch.allclose(w.sum(dim=-1), torch.ones(4), atol=1e-5), 'not summing to 1'
     print('All checks passed.')
+
+
+class ImitationMLP(nn.Module):
+    """
+    Behaviour cloning network for IMITATION training.
+
+    Predicts teacher controller cmd_vel [vx, vz] from the 410-dim
+    feature vector. Linear output — no softmax — pure regression.
+
+    Architecture identical backbone to MetaCriticMLP, output_dim=2.
+    """
+
+    def __init__(self, input_dim: int = 410, hidden: list = None):
+        super().__init__()
+        if hidden is None:
+            hidden = [256, 128, 64]
+
+        layers = []
+        prev = input_dim
+        for h in hidden:
+            layers.append(nn.Linear(prev, h))
+            layers.append(nn.LayerNorm(h))
+            layers.append(nn.ReLU())
+            prev = h
+        layers.append(nn.Linear(prev, 2))   # [vx, vz] — no softmax
+
+        self.net = nn.Sequential(*layers)
+        self.input_dim  = input_dim
+        self.output_dim = 2
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:  x: (batch, 410) float32
+        Returns: vel: (batch, 2) float32  — [vx, vz], unbounded
+        """
+        return self.net(x)
+
+    @torch.jit.export
+    def predict_velocity(self, x: torch.Tensor) -> torch.Tensor:
+        return self.forward(x)
+
+    def param_count(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+
+
+def build_imitation_model(input_dim: int = 410) -> ImitationMLP:
+    """Factory used by train.py --method IMITATION."""
+    return ImitationMLP(input_dim=input_dim)

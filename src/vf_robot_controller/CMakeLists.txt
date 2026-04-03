@@ -139,8 +139,10 @@ ament_python_install_package(meta_critic)
 
 install(PROGRAMS
   meta_critic/feature_extractor.py
-  meta_critic/inference_node.py
-  meta_critic/data_logger.py
+  meta_critic/meta_critic_inference_node.py
+  meta_critic/meta_critic_data_logger.py
+  meta_critic/imitation_data_logger.py
+  meta_critic/imitation_inference_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

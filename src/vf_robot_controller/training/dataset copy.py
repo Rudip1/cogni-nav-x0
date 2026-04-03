@@ -2,12 +2,14 @@
 dataset.py — HDF5 DataLoader for meta-critic supervised training.
 
 ─────────────────────────────────────────────────────────────────────────────
-TRAINING METHOD: META_CRITIC (novel contribution — ideal weight recovery)
+TRAINING METHODS
 ─────────────────────────────────────────────────────────────────────────────
 
+META_CRITIC (novel contribution — ideal weight recovery):
   Label : float32 vector w* ∈ R^K, w*≥0, sum=1
   Learns: given features s_t, output per-critic importance weights
   Loss  : MSELoss(predicted_weights, w*)
+  Note  : interprets WHY each critic matters, produces the thesis key figure
 
 ─────────────────────────────────────────────────────────────────────────────
 HDF5 FILE LAYOUT (written by data_logger.py from DataRecorder C++ output)
@@ -17,17 +19,12 @@ HDF5 FILE LAYOUT (written by data_logger.py from DataRecorder C++ output)
                                      goal_dist, goal_heading, best_idx,
                                      n_candidates, n_critics]
   scores    (T, N*K)    float32  — per-critic score matrix, row-major
+                                   [traj0_c0, traj0_c1...traj0_cK, traj1_c0...]
 
-─────────────────────────────────────────────────────────────────────────────
-FIX: Per-critic normalization to handle scale imbalance
-─────────────────────────────────────────────────────────────────────────────
-Problem: SmoothnessCritic can return values up to 500,000+ while other
-critics return values < 1.0. This causes SmoothnessCritic to dominate
-the ideal weight computation (99%+ weight).
-
-Solution: Normalize each critic's scores to [0, 1] range before computing
-margins. This ensures all critics have equal opportunity to influence
-the weight vector.
+Scalars index constants (must match data_recorder.cpp HEADER_SIZE layout):
+  IDX_BEST_IDX     = 8   ← real argmin from optimizer (Phase 1 fix)
+  IDX_N_CANDIDATES = 9
+  IDX_N_CRITICS    = 10
 ─────────────────────────────────────────────────────────────────────────────
 """
 
@@ -48,50 +45,13 @@ except ImportError:
 
 
 # ── Training method constants ─────────────────────────────────────────────────
-META_CRITIC = "META_CRITIC"
+META_CRITIC = "META_CRITIC"  # novel — ideal weight recovery
 VALID_METHODS = (META_CRITIC,)
 
 # ── Scalars layout (matches data_recorder.cpp header) ─────────────────────────
 IDX_BEST_IDX = 8
 IDX_N_CANDIDATES = 9
 IDX_N_CRITICS = 10
-
-
-# ── Normalization helper ──────────────────────────────────────────────────────
-
-
-def normalize_score_matrix(score_matrix: np.ndarray) -> np.ndarray:
-    """
-    Normalize each critic's scores to [0, 1] range.
-
-    This handles the scale imbalance problem where some critics (e.g.,
-    SmoothnessCritic) can return values 1000x larger than others.
-
-    Args:
-        score_matrix: (N, K) array of raw scores
-
-    Returns:
-        (N, K) array with each column normalized to [0, 1]
-    """
-    # Handle inf values first
-    matrix = score_matrix.copy()
-    matrix = np.nan_to_num(matrix, nan=0.0, posinf=1e6, neginf=0.0)
-
-    # Normalize each critic column independently
-    normalized = np.zeros_like(matrix)
-    for k in range(matrix.shape[1]):
-        col = matrix[:, k]
-        col_min = col.min()
-        col_max = col.max()
-
-        if col_max - col_min > 1e-9:
-            # Scale to [0, 1]
-            normalized[:, k] = (col - col_min) / (col_max - col_min)
-        else:
-            # All values same — set to 0 (no discrimination)
-            normalized[:, k] = 0.0
-
-    return normalized
 
 
 # ── Label generation functions ────────────────────────────────────────────────
@@ -108,20 +68,23 @@ def recover_ideal_weights(
     recover the weight vector that best differentiates the best trajectory
     from all others.
 
-    IMPORTANT: Normalizes scores per-critic before computing margins to
-    handle scale imbalance between critics.
-
     Method: for each critic k, compute how much it helps select best_idx:
       margin_k = mean(scores[other_trajs, k]) - scores[best_idx, k]
     A large positive margin means critic k strongly prefers the best trajectory.
     Normalise to a probability simplex (sum=1, all≥0).
 
+    IMPORTANT: Handles inf values by replacing them with a large finite value
+    before computing margins. This prevents NaN in the output.
+
     Returns: float32 array of shape (K,), sums to 1.0, or None if invalid
     """
     n_cand, n_crit = score_matrix.shape
 
-    # CRITICAL: Normalize scores to handle scale imbalance
-    score_matrix = normalize_score_matrix(score_matrix)
+    # Check for any inf or nan in the score matrix
+    if not np.isfinite(score_matrix).all():
+        # Replace inf with large finite value, nan with 0
+        score_matrix = score_matrix.copy()
+        score_matrix = np.nan_to_num(score_matrix, nan=0.0, posinf=1e6, neginf=-1e6)
 
     best_scores = score_matrix[best_idx]  # (K,)
     mask = np.ones(n_cand, dtype=bool)
@@ -132,7 +95,7 @@ def recover_ideal_weights(
         # Only one trajectory — uniform weights
         return np.ones(n_crit, dtype=np.float32) / n_crit
 
-    # margin_k > 0 means critic k gives lower (better) normalized score to best
+    # margin_k > 0 means critic k gives lower cost to best than to others
     margins = other_scores.mean(axis=0) - best_scores  # (K,)
     margins = np.clip(margins, 0.0, None)  # keep positives only
 
@@ -156,22 +119,22 @@ def recover_ideal_weights(
 
 def get_best_idx_from_scores(score_matrix: np.ndarray) -> int:
     """
-    Compute best trajectory index from normalized score matrix.
+    Compute best trajectory index from score matrix using uniform critic weights.
 
     Args:
         score_matrix: (N, K) array of per-critic scores
 
     Returns:
-        int: index of trajectory with lowest total normalized cost
+        int: index of trajectory with lowest total cost
     """
-    # Normalize first to handle scale imbalance
-    normalized = normalize_score_matrix(score_matrix)
+    n_cand, n_crit = score_matrix.shape
 
-    n_cand, n_crit = normalized.shape
+    # Handle inf values
+    safe_scores = np.nan_to_num(score_matrix, nan=1e9, posinf=1e9, neginf=-1e9)
 
-    # Uniform weights for trajectory selection
+    # Uniform weights
     uniform = np.ones(n_crit, dtype=np.float32) / n_crit
-    totals = normalized @ uniform
+    totals = safe_scores @ uniform
 
     return int(np.argmin(totals))
 
@@ -227,7 +190,7 @@ class MetaCriticDataset(Dataset):
         )
 
         if self.skipped_inf > 0:
-            print(f"  Skipped {self.skipped_inf} samples with excessive inf scores")
+            print(f"  Skipped {self.skipped_inf} samples with inf scores")
         if self.skipped_dim > 0:
             print(f"  Skipped {self.skipped_dim} samples with dimension mismatch")
         if self.skipped_nan_label > 0:
@@ -276,14 +239,10 @@ class MetaCriticDataset(Dataset):
                 self.skipped_inf += 1
                 continue
 
-            # Use recorded best_idx if valid, otherwise compute from scores
-            recorded_best = int(scalar_t[IDX_BEST_IDX])
-            if 0 <= recorded_best < n_cand:
-                best_idx = recorded_best
-            else:
-                best_idx = get_best_idx_from_scores(score_matrix)
+            # Compute best_idx from scores (more robust than using recorded value)
+            best_idx = get_best_idx_from_scores(score_matrix)
 
-            # Generate ideal weight label (with normalization)
+            # Generate ideal weight label
             label = recover_ideal_weights(score_matrix, best_idx)
 
             # Skip if label contains NaN
@@ -313,27 +272,9 @@ class MetaCriticDataset(Dataset):
         # Compute entropy safely
         weights_safe = np.clip(weights, 1e-9, 1.0)
         entropy = -np.sum(weights_safe * np.log(weights_safe), axis=1).mean()
-
-        # Also show mean weight per critic
-        mean_weights = weights.mean(axis=0)
-        critics = [
-            "Obst",
-            "Vol",
-            "Dyn",
-            "Path",
-            "Smooth",
-            "Goal",
-            "Vel",
-            "Corr",
-            "Clear",
-            "Osc",
-        ]
-        weight_str = ", ".join([f"{c}={w:.2f}" for c, w in zip(critics, mean_weights)])
-
         return (
             f"META_CRITIC labels — float32[{self.n_critics}], "
-            f"mean_entropy={float(entropy):.3f}\n"
-            f"  Mean weights: {weight_str}"
+            f"mean_entropy={float(entropy):.3f}"
         )
 
 
@@ -390,68 +331,3 @@ if __name__ == "__main__":
             print(f"            label values: {label.numpy()}")
     except FileNotFoundError as e:
         print(f"Error: {e}")
-
-
-# ── Imitation Dataset ─────────────────────────────────────────────────────────
-
-IMITATION = "IMITATION"
-
-
-class ImitationDataset(Dataset):
-    """
-    HDF5 dataset for IMITATION (behaviour cloning) training.
-
-    Reads from imitation/run_*.h5 files written by imitation_data_logger.py.
-    Does not require or read critic score matrices.
-
-    Returns per __getitem__:
-        (features: float32[410], label: float32[2])
-        label = [linear_x, angular_z] from teacher controller /cmd_vel
-    """
-
-    def __init__(self, data_dir: str = 'training/imitation'):
-        if not H5PY_AVAILABLE:
-            raise ImportError('h5py required: pip3 install h5py')
-
-        self.method = IMITATION
-        self.samples: list = []
-
-        files = sorted(glob.glob(os.path.join(data_dir, 'run_*.h5')))
-        if not files:
-            raise FileNotFoundError(
-                f'No run_*.h5 files found in {data_dir}\n'
-                f'Run imitation_collect_launch.py first.')
-
-        for fp in files:
-            self._load_file(fp)
-
-        print(f'[IMITATION] ImitationDataset: {len(self.samples):,} samples '
-              f'from {len(files)} file(s) in {data_dir}')
-
-    def _load_file(self, filepath: str):
-        with h5py.File(filepath, 'r') as f:
-            missing = [k for k in ('features', 'cmd_vel') if k not in f]
-            if missing:
-                print(f'  Skipping {os.path.basename(filepath)} — missing: {missing}')
-                return
-
-            features = f['features'][:]   # (T, 410)
-            cmd_vel  = f['cmd_vel'][:]    # (T, 2)
-
-        T = features.shape[0]
-        loaded = 0
-        for t in range(T):
-            feat = features[t].astype(np.float32)
-            vel  = cmd_vel[t].astype(np.float32)
-            if np.isfinite(feat).all() and np.isfinite(vel).all():
-                self.samples.append((feat, vel))
-                loaded += 1
-
-        print(f'  {os.path.basename(filepath)}: loaded {loaded}/{T} timesteps')
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    def __getitem__(self, idx: int):
-        features, label = self.samples[idx]
-        return torch.from_numpy(features), torch.from_numpy(label)
