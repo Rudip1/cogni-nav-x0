@@ -1,0 +1,29 @@
+# depthimage_to_laserscan Parameters for D435i Camera
+# 
+# WARNING: D435i is mounted at 1.773m height, tilted 60° downward
+# The resulting laser scan will primarily detect the floor, not obstacles!
+# Consider using D455 (camera:=d455) for better obstacle detection.
+#
+# If you must use D435i for scanning:
+# - Increase scan_height to capture more rows
+# - The scan will still be tilted in the optical frame
+
+# D435i specific
+output_frame_id: "camera_d435i_depth_optical_frame"
+
+# Input topics (remapped in launch file)
+# depth: /d435i/depth/d435i_depth/depth/image_raw
+# depth_camera_info: /d435i/depth/d435i_depth/depth/camera_info
+
+# Output topic (remapped in launch file)
+# scan: /scan (single camera) or /scan_d435i (dual camera)
+
+# Override common params if needed
+range_min: 0.6
+range_max: 6.0
+scan_height: 1
+
+# For D435i's 60° tilt, you might want to increase scan_height
+# to get a thicker "slice" of the depth image
+# Uncomment if needed:
+# scan_height: 10

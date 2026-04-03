@@ -1,0 +1,37 @@
+# RTAB-Map SLAM Mode Parameters
+# Use this for building new maps in unknown environments
+
+rtabmap:
+  ros__parameters:
+    # Mode flag
+    Mem/IncrementalMemory: "true"
+    Mem/InitWMWithAllNodes: "false"
+
+    # SLAM-specific settings
+    Rtabmap/StartNewMapOnLoopClosure: "false"
+    RGBD/SavedLocalizationIgnored: "true"
+
+    # Loop closure detection
+    Rtabmap/LoopThr: "0.11"
+    Rtabmap/LoopRatio: "0.0"
+
+    # Keep images for better loop closure
+    Mem/ImageKept: "true"
+    Mem/STMSize: "30"
+    Mem/RehearsalSimilarity: "0.6"
+
+    # Localization settings
+    RGBD/LocalBundleOnLoopClosure: "true"
+    RGBD/OptimizeFromGraphEnd: "false"
+
+    # Grid map generation
+    RGBD/CreateOccupancyGrid: "true"
+    Grid/FromDepth: "true"
+    Grid/RayTracing: "true"
+    Grid/3D: "false"
+    Grid/CellSize: "0.05"
+    Grid/RangeMin: "0.0"
+    Grid/RangeMax: "6.0"
+    Grid/MaxGroundHeight: "0.05"
+    Grid/MaxObstacleHeight: "2.0"
+    Grid/NormalsSegmentation: "true"

@@ -1,0 +1,23 @@
+# depthimage_to_laserscan Common Parameters
+# Converts depth images to 2D laser scan for Nav2 compatibility
+
+# Scan parameters
+range_min: 0.6         # Minimum range in meters (depth camera limit)
+range_max: 6.0         # Maximum range in meters (depth camera limit)
+
+# Scan dimensions
+# scan_height: Number of rows from depth image to use for laser scan
+# Higher values = more robust but slower
+# WARNING: For tilted cameras (D435i), this may sample floor pixels
+scan_height: 1
+
+# Scan time
+scan_time: 0.033       # 1/30 Hz (matches camera frame rate)
+
+# Output frame will be set per-camera in camera-specific configs
+# output_frame_id: "camera_XXX_depth_optical_frame"
+
+# Infinity behavior
+# inf_is_valid: If true, infinite readings are set to max_range
+# If false, infinite readings are set to 0 (no reading)
+inf_is_valid: false

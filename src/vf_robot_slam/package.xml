@@ -1,42 +1,15 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
-            schematypens="http://www.w3.org/2001/XMLSchema"?>
-
-<!--
-  HYBRID ament_cmake + Python package — SLAM and Localization only.
-  C++ nodes in src/ (reserved, empty now), Python launch files in launch/.
-  URDF + meshes live in vf_robot_description (single source of truth).
-  Gazebo worlds/models live in vf_robot_gazebo — not duplicated here.
-
-  SLAM stack: RTAB-Map installed system-wide via apt — NOT cloned into workspace.
-    sudo apt install ros-humble-rtabmap-ros
-
-  Supported camera configs:
-    D435i only  — /camera/*  namespace, front-top, 60° ground-facing
-    D455 only   — /camera2/* namespace, rear base-level, wide FOV
-    Multicamera — D435i + D455 combined (rgbd_sync + rtabmap rgbd_cameras=2)
--->
-
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>vf_robot_slam</name>
   <version>0.1.0</version>
-  <description>
-    SLAM and Localization launch package for the VF ViroFighter (uvc1) mobile robot.
-    Supports D435i-only, D455-only, and multicamera RTAB-Map configurations.
-    Works on real hardware (use_sim_time:=false) and Gazebo (use_sim_time:=true).
-  </description>
-
-  <maintainer email="olipravin18@gmail.com">Pravin</maintainer>
+  <description>SLAM and localization package for ViroFighter UVC-1 robot</description>
+  <maintainer email="your-email@example.com">Your Name</maintainer>
   <license>Apache-2.0</license>
 
-  <!-- ── Build system ────────────────────────────────────────────────────── -->
-  <!-- ament_cmake for C++ (src/ reserved) + ament_cmake_python for scripts/ -->
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
-  <!-- ── Core ROS 2 — build + runtime ───────────────────────────────────── -->
-  <!-- Listed as <depend> so they satisfy both build and exec requirements.  -->
-  <!-- These are also needed if C++ nodes are added to src/ later.           -->
+  <!-- Core dependencies -->
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
@@ -46,45 +19,40 @@
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
 
-  <!-- URDF and meshes — colcon builds vf_robot_description before this pkg -->
-  <depend>vf_robot_description</depend>
+  <!-- RTAB-Map dependencies -->
+  <depend>rtabmap_ros</depend>
+  <depend>rtabmap_sync</depend>
+  <depend>rtabmap_slam</depend>
+  <depend>rtabmap_viz</depend>
+  <depend>rtabmap_util</depend>
 
-  <!-- ── Runtime-only — launched by launch files, not compiled against ───── -->
+  <!-- Depth to LaserScan -->
+  <depend>depthimage_to_laserscan</depend>
 
-  <!-- TF and robot state -->
-  <exec_depend>robot_state_publisher</exec_depend>
+  <!-- Laser scan merging (for dual camera mode) -->
+  <!-- NOTE: ira_laser_tools must be built from source:
+       cd ~/your_ws/src
+       git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2
+       colcon build - -packages-select ira_laser_tools
+       
+       Alternatively, configure Nav2 costmaps to use multiple observation sources
+       instead of merging scans (see README.md)
+  -->
+  <!-- <depend>ira_laser_tools</depend> -->
 
-  <!-- RTAB-Map SLAM stack — installed system-wide, not cloned             -->
-  <!-- sudo apt install ros-humble-rtabmap-ros                              -->
-  <exec_depend>rtabmap_ros</exec_depend>
-  <exec_depend>rtabmap_slam</exec_depend>   <!-- rtabmap node (Humble split pkg) -->
-  <exec_depend>rtabmap_sync</exec_depend>   <!-- rgbd_sync for multicam mode     -->
-  <exec_depend>rtabmap_odom</exec_depend>   <!-- rgbd_odometry (optional)        -->
-  <exec_depend>rtabmap_viz</exec_depend>    <!-- rtabmapviz visualizer           -->
+  <!-- Image processing -->
+  <depend>image_transport</depend>
+  <depend>cv_bridge</depend>
 
-  <!-- Intel RealSense camera driver — real robot only                      -->
-  <!-- sudo apt install ros-humble-realsense2-camera                        -->
-  <!-- Skipped in Gazebo launches (use_sim_time:=true)                      -->
-  <exec_depend>realsense2_camera</exec_depend>
+  <!-- Launch dependencies -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
-  <!-- Image pipeline utilities -->
-  <exec_depend>image_transport</exec_depend>
-  <exec_depend>cv_bridge</exec_depend>
-  <exec_depend>depth_image_proc</exec_depend>
-
-  <!-- Point cloud processing (used by RTAB-Map depth pipeline) -->
-  <exec_depend>pcl_ros</exec_depend>
-
-  <!-- Visualisation -->
-  <exec_depend>rviz2</exec_depend>
-
-  <!-- ── Testing ─────────────────────────────────────────────────────────── -->
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
-    <!-- No gazebo_model_path export — worlds/models live in vf_robot_gazebo -->
   </export>
-
 </package>
