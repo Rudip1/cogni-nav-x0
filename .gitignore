@@ -18,6 +18,9 @@ build/
 install/
 log/
 
+#maps
+maps/
+
 # External packages
 src/navigation2/
 src/rtabmap/
