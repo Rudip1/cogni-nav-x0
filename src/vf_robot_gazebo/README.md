@@ -91,11 +91,17 @@ source install/setup.bash
 ```bash
 ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
 ```
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_xacro_rviz.launch.py
+```
 
 ### Launch Simulation (SDF pipeline — faster startup)
 
 ```bash
 ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
+```
+```bash
+ros2 launch vf_robot_gazebo vf_empty_world_sdf_rviz.launch.py
 ```
 
 You should see Gazebo with the ViroFighter robot and rqt_robot_steering GUI.

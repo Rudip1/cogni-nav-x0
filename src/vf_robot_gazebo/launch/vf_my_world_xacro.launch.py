@@ -179,21 +179,6 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
-    # ── RViz — delayed 6s (after robot spawn) ──────────────────────────────
-    rviz_node = TimerAction(
-        period=6.0,
-        actions=[
-            Node(
-                package="rviz2",
-                executable="rviz2",
-                name="rviz2",
-                output="screen",
-                arguments=["-d", rviz_config],
-                parameters=[{"use_sim_time": use_sim_time}],
-            )
-        ],
-    )
-
     ld = LaunchDescription()
 
     # Declare arguments first
@@ -213,6 +198,5 @@ def generate_launch_description():
     ld.add_action(robot_state_publisher_cmd)  # starts immediately
     ld.add_action(spawn_robot_cmd)  # delayed 5s
     ld.add_action(gui_teleop_node)
-    ld.add_action(rviz_node)  # delayed 6s
 
     return ld

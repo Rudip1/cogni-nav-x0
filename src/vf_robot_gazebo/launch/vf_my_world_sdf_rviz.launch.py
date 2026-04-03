@@ -30,7 +30,7 @@
 #   Gazebo diff drive publishes odom→base_footprint only.
 #   RSP publishes base_footprint→base_link→all sensor/wheel frames.
 #
-# Run:  ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
+# Run:  ros2 launch vf_robot_gazebo vf_my_world_sdf_rviz.launch.py
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -151,6 +151,16 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
+    # ── RViz ───────────────────────────────────────────────────────────────
+    rviz_node = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config],
+        parameters=[{"use_sim_time": use_sim_time}],
+    )
+
     ld = LaunchDescription()
 
     # Declare arguments first
@@ -170,5 +180,6 @@ def generate_launch_description():
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_robot_cmd)
     ld.add_action(gui_teleop_node)
+    ld.add_action(rviz_node)
 
     return ld

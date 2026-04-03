@@ -17,20 +17,31 @@
 # Authors: Pravin Oli
 # https://www.euroknows.com/en/home/
 #
-# My world — robot loaded from SDF inside vf_robot_gazebo/models/
+# My world — robot loaded from vf_robot_description xacro (single source of truth).
 #
 # Node graph:
-#   gzserver + gzclient       → Gazebo simulation
-#   vf_spawn_sdf              → spawns robot from model.sdf
-#   vf_robot_state_publisher  → publishes TF tree from xacro (needed by RViz)
+#   gzserver                  → Gazebo physics server
+#   gzclient                  → Gazebo GUI (delayed 3s — race condition fix)
+#   robot_state_publisher     → processes xacro, publishes /robot_description + TF
+#   spawn_entity              → reads /robot_description topic, spawns robot (delayed 5s)
 #   rqt_robot_steering        → teleop GUI
 #   rviz2                     → visualisation
 #
-# WHY robot_state_publisher:
-#   Gazebo diff drive publishes odom→base_footprint only.
-#   RSP publishes base_footprint→base_link→all sensor/wheel frames.
+# CRITICAL FIX — Environment Variables:
+#   SetEnvironmentVariable MUST PREPEND to existing paths, never replace.
+#   Replacing destroys Gazebo's own resource paths (/usr/share/gazebo-11),
+#   causing RTShaderSystem errors and gzserver exit code 255.
 #
-# Run:  ros2 launch vf_robot_gazebo vf_my_world_sdf.launch.py
+# NOTE: my_world.world requires uvc1_hospital and corridor models to be
+#   present in GAZEBO_MODEL_PATH. If gzserver crashes with exit 255,
+#   check that all world models are in vf_robot_gazebo/models/.
+#
+# WHY TWO DELAYS:
+#   gzclient delay (3s) — prevents "Assertion px != 0" GUI race crash.
+#   spawn delay (5s)    — prevents gzserver crash when loading package://
+#                         mesh URIs before rendering scene is ready.
+#
+# Run:  ros2 launch vf_robot_gazebo vf_my_world_xacro_rviz.launch.py
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -39,6 +50,7 @@ from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     SetEnvironmentVariable,
+    TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -48,6 +60,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     pkg_vf_gazebo = get_package_share_directory("vf_robot_gazebo")
     pkg_gazebo_ros = get_package_share_directory("gazebo_ros")
+    pkg_desc = get_package_share_directory("vf_robot_description")
     launch_dir = os.path.join(pkg_vf_gazebo, "launch")
 
     # ── Launch arguments ───────────────────────────────────────────────────
@@ -81,12 +94,24 @@ def generate_launch_description():
     rviz_config = os.path.join(pkg_vf_gazebo, "rviz", "vf_robot_gazebo.rviz")
 
     # ── Environment variables — PREPEND, never replace ────────────────────
+    # Hardcode system Gazebo paths to ensure they're always included.
+    gazebo_resource_path = SetEnvironmentVariable(
+        name="GAZEBO_RESOURCE_PATH",
+        value=os.pathsep.join(
+            [
+                os.path.dirname(pkg_desc),  # vf_robot_description share parent
+                "/usr/share/gazebo-11",  # Gazebo Classic resources
+                "/opt/ros/humble/share",  # ROS 2 Humble resources
+            ]
+        ),
+    )
     gazebo_model_path = SetEnvironmentVariable(
         name="GAZEBO_MODEL_PATH",
         value=os.pathsep.join(
             [
-                os.path.join(pkg_vf_gazebo, "models"),
-                "/usr/share/gazebo-11/models",
+                os.path.join(pkg_vf_gazebo, "models"),  # vf_robot_gazebo models
+                os.path.dirname(pkg_desc),  # for package:// mesh resolution
+                "/usr/share/gazebo-11/models",  # Gazebo default models
             ]
         ),
     )
@@ -94,52 +119,55 @@ def generate_launch_description():
         name="GAZEBO_PLUGIN_PATH",
         value=os.pathsep.join(
             [
-                "/opt/ros/humble/lib",
-                "/usr/lib/x86_64-linux-gnu/gazebo-11/plugins",
-            ]
-        ),
-    )
-    gazebo_resource_path = SetEnvironmentVariable(
-        name="GAZEBO_RESOURCE_PATH",
-        value=os.pathsep.join(
-            [
-                "/usr/share/gazebo-11",
-                "/opt/ros/humble/share",
+                "/opt/ros/humble/lib",  # ROS 2 Gazebo plugins
+                "/usr/lib/x86_64-linux-gnu/gazebo-11/plugins",  # Gazebo plugins
             ]
         ),
     )
 
-    # ── Gazebo server + client ─────────────────────────────────────────────
+    # ── Gazebo server ──────────────────────────────────────────────────────
     gzserver_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_ros, "launch", "gzserver.launch.py")
         ),
         launch_arguments={"world": world}.items(),
     )
-    gzclient_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_gazebo_ros, "launch", "gzclient.launch.py")
-        )
+
+    # ── Gazebo client — delayed 3s (prevents GUI race crash) ───────────────
+    gzclient_cmd = TimerAction(
+        period=3.0,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(pkg_gazebo_ros, "launch", "gzclient.launch.py")
+                )
+            )
+        ],
     )
 
-    # ── Spawn robot from SDF ───────────────────────────────────────────────
-    spawn_robot_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(launch_dir, "vf_spawn_sdf.launch.py")
-        ),
-        launch_arguments={
-            "x_pose": x_pose,
-            "y_pose": y_pose,
-            "theta": theta,
-        }.items(),
-    )
-
-    # ── Robot state publisher — publishes TF tree from xacro ───────────────
+    # ── Robot state publisher — processes xacro immediately ────────────────
     robot_state_publisher_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_dir, "vf_robot_state_publisher.launch.py")
         ),
         launch_arguments={"use_sim_time": use_sim_time}.items(),
+    )
+
+    # ── Spawn robot — delayed 5s (prevents gzserver mesh-load crash) ───────
+    spawn_robot_cmd = TimerAction(
+        period=5.0,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(launch_dir, "vf_spawn_xacro.launch.py")
+                ),
+                launch_arguments={
+                    "x_pose": x_pose,
+                    "y_pose": y_pose,
+                    "theta": theta,
+                }.items(),
+            )
+        ],
     )
 
     # ── Teleop GUI ─────────────────────────────────────────────────────────
@@ -151,6 +179,21 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
+    # ── RViz — delayed 6s (after robot spawn) ──────────────────────────────
+    rviz_node = TimerAction(
+        period=6.0,
+        actions=[
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+                arguments=["-d", rviz_config],
+                parameters=[{"use_sim_time": use_sim_time}],
+            )
+        ],
+    )
+
     ld = LaunchDescription()
 
     # Declare arguments first
@@ -160,15 +203,16 @@ def generate_launch_description():
     ld.add_action(declare_theta)
 
     # Environment variables MUST be set before gzserver starts
+    ld.add_action(gazebo_resource_path)
     ld.add_action(gazebo_model_path)
     ld.add_action(gazebo_plugin_path)
-    ld.add_action(gazebo_resource_path)
 
     # Launch sequence
     ld.add_action(gzserver_cmd)
-    ld.add_action(gzclient_cmd)
-    ld.add_action(robot_state_publisher_cmd)
-    ld.add_action(spawn_robot_cmd)
+    ld.add_action(gzclient_cmd)  # delayed 3s
+    ld.add_action(robot_state_publisher_cmd)  # starts immediately
+    ld.add_action(spawn_robot_cmd)  # delayed 5s
     ld.add_action(gui_teleop_node)
+    ld.add_action(rviz_node)  # delayed 6s
 
     return ld
