@@ -54,7 +54,7 @@ This package is a **hybrid `ament_cmake` + Python** package, meaning it compiles
 
 Both pipelines share the same `robot_state_publisher` for TF tree publishing.
 
-![ViroFighter Gazebo Demo](docs/vf_robot_gazebo.gif)
+![ViroFighter Gazebo Demo](src/vf_robot_gazebo/docs/vf_robot_gazebo.gif)
 
 ---
 
