@@ -29,14 +29,14 @@
   <!-- Depth to LaserScan -->
   <depend>depthimage_to_laserscan</depend>
 
-  <!-- Laser scan merging (for dual camera mode) -->
-  <!-- NOTE: ira_laser_tools must be built from source:
-       cd ~/your_ws/src
+  <!-- Topic relay (fallback when ira_laser_tools not installed) -->
+  <exec_depend>topic_tools</exec_depend>
+
+  <!-- Laser scan merging (for dual camera mode)
+       ira_laser_tools must be built from source:
+       cd ~/cogni-nav-x0/src
        git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2
        colcon build - -packages-select ira_laser_tools
-       
-       Alternatively, configure Nav2 costmaps to use multiple observation sources
-       instead of merging scans (see README.md)
   -->
   <!-- <depend>ira_laser_tools</depend> -->
 

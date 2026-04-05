@@ -7,10 +7,8 @@ endif()
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(rclpy REQUIRED)
 
-# Install launch files
+# Install launch files (including launch/include/)
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}
