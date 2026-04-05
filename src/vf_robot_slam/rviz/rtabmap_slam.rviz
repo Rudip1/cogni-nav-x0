@@ -422,14 +422,14 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 0.0017846585251390934
-        Min Value: 0.0011704574571922421
+        Max Value: 0.4293583631515503
+        Min Value: 0.4287571907043457
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/LaserScan
       Color: 0; 0; 255
-      Color Transformer: ""
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -438,7 +438,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: d455_LaserScan
-      Position Transformer: ""
+      Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 2
       Size (m): 0.10000000149011612
