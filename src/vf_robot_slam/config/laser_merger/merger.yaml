@@ -1,35 +1,34 @@
 # Laser Scan Merger Configuration (ira_laser_tools)
 # Merges /scan_d435i and /scan_d455 into single /scan topic
 #
-# Required for AMCL (Mode 3) which expects a single /scan topic
-# For Nav2 costmaps, you can alternatively configure multiple observation sources
-# and skip the merger entirely (see nav2_params.yaml example)
+# NOTE: Launch files override several of these values inline (range_min,
+# destination_frame, etc.) to match the selected depth_to_scan method.
+# This file provides sensible defaults used as the base.
 
 laserscan_multi_merger:
   ros__parameters:
-    # Input scan topics (space-separated list)
+    # Input scan topics (space-separated)
     laserscan_topics: "/scan_d435i /scan_d455"
-    
-    # Output topic
+
+    # Output
     scan_destination_topic: "/scan"
-    
-    # Destination frame for merged scan
-    # All input scans will be transformed to this frame before merging
-    destination_frame: "base_link"
-    
-    # Cloud parameters
-    cloud_destination_topic: "/merged_cloud"
-    
-    # Scan parameters
-    angle_min: -3.14159       # -180 degrees
-    angle_max: 3.14159        # +180 degrees
-    angle_increment: 0.0087   # ~0.5 degrees
+
+    # Destination frame — base_footprint is the URDF root, always in TF from t=0
+    destination_frame: "base_footprint"
+
+    # Scan geometry
+    angle_min: -3.14159       # -180°
+    angle_max: 3.14159        # +180°
+    angle_increment: 0.0087   # ~0.5°
     scan_time: 0.033          # 30 Hz
-    range_min: 0.6
+
+    # Range — launch files may override to 0.1 (pc2scan) or 0.6 (dimg)
+    range_min: 0.1
     range_max: 6.0
-    
+
     # TF tolerance
-    tf_tolerance: 0.1         # seconds
-    
-    # Whether to publish the merged point cloud
+    tf_tolerance: 0.1
+
+    # Point cloud output (disabled — not needed for Nav2)
+    cloud_destination_topic: "/merged_cloud"
     publish_cloud: false
