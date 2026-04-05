@@ -8,6 +8,12 @@ endif()
 # Find dependencies
 find_package(ament_cmake REQUIRED)
 
+# Install Python scripts (scan_merger node)
+install(PROGRAMS
+  scripts/scan_merger.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install launch files (including launch/include/)
 install(DIRECTORY
   launch

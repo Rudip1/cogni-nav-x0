@@ -4,13 +4,12 @@
   <name>vf_robot_slam</name>
   <version>0.1.0</version>
   <description>SLAM and localization package for ViroFighter UVC-1 robot</description>
-  <maintainer email="your-email@example.com">Your Name</maintainer>
+  <maintainer email="olipravin18@gmail.com">Pravin Oli</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <!-- Core dependencies -->
-  <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
@@ -28,17 +27,7 @@
 
   <!-- Depth to LaserScan -->
   <depend>depthimage_to_laserscan</depend>
-
-  <!-- Topic relay (fallback when ira_laser_tools not installed) -->
-  <exec_depend>topic_tools</exec_depend>
-
-  <!-- Laser scan merging (for dual camera mode)
-       ira_laser_tools must be built from source:
-       cd ~/cogni-nav-x0/src
-       git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2
-       colcon build - -packages-select ira_laser_tools
-  -->
-  <!-- <depend>ira_laser_tools</depend> -->
+  <depend>pointcloud_to_laserscan</depend>
 
   <!-- Image processing -->
   <depend>image_transport</depend>
