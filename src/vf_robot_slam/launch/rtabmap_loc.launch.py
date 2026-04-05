@@ -41,7 +41,7 @@ def _get_rtabmap_loc_params(database_path, use_sim_time):
         # ── Time (CRITICAL for Gazebo) ──
         "use_sim_time": use_sim_time,
         # ── Frames ──
-        "frame_id": "base_footprint",   # must match odom child_frame_id
+        "frame_id": "base_footprint",  # must match odom child_frame_id
         "odom_frame_id": "odom",
         "map_frame_id": "map",
         "publish_tf": True,
@@ -101,31 +101,43 @@ def launch_setup(context, *args, **kwargs):
     # ── Guard: check database exists ─────────────────────────────────────────
     if not os.path.exists(database_path):
         actions.append(
-            LogInfo(msg=[
-                "\n", "=" * 70, "\n",
-                "ERROR: Map database not found!\n",
-                "=" * 70, "\n",
-                f"Expected:  {database_path}\n",
-                "\nBuild the map first:\n",
-                f"  ros2 launch vf_robot_slam rtabmap_slam.launch.py "
-                f"camera:={camera} map_name:={map_name}\n",
-                "=" * 70, "\n",
-            ])
+            LogInfo(
+                msg=[
+                    "\n",
+                    "=" * 70,
+                    "\n",
+                    "ERROR: Map database not found!\n",
+                    "=" * 70,
+                    "\n",
+                    f"Expected:  {database_path}\n",
+                    "\nBuild the map first:\n",
+                    f"  ros2 launch vf_robot_slam rtabmap_slam.launch.py "
+                    f"camera:={camera} map_name:={map_name}\n",
+                    "=" * 70,
+                    "\n",
+                ]
+            )
         )
         return actions
 
     actions.append(
-        LogInfo(msg=[
-            "\n", "=" * 70, "\n",
-            "RTAB-Map Localization Mode\n",
-            "=" * 70, "\n",
-            f"Camera:        {camera}\n",
-            f"Map name:      {map_name}\n",
-            f"Database:      {database_path}\n",
-            f"Sim time:      {use_sim_time}\n",
-            f"Frame ID:      base_footprint\n",
-            "=" * 70, "\n",
-        ])
+        LogInfo(
+            msg=[
+                "\n",
+                "=" * 70,
+                "\n",
+                "RTAB-Map Localization Mode\n",
+                "=" * 70,
+                "\n",
+                f"Camera:        {camera}\n",
+                f"Map name:      {map_name}\n",
+                f"Database:      {database_path}\n",
+                f"Sim time:      {use_sim_time}\n",
+                f"Frame ID:      base_footprint\n",
+                "=" * 70,
+                "\n",
+            ]
+        )
     )
 
     # ── Include rgbd_sync (shared module) ────────────────────────────────────
@@ -146,12 +158,14 @@ def launch_setup(context, *args, **kwargs):
     rtabmap_params = _get_rtabmap_loc_params(database_path, use_sim_time)
 
     if camera == "dual":
-        rtabmap_params.update({
-            "subscribe_depth": False,
-            "subscribe_rgb": False,
-            "subscribe_rgbd": True,
-            "rgbd_cameras": 2,
-        })
+        rtabmap_params.update(
+            {
+                "subscribe_depth": False,
+                "subscribe_rgb": False,
+                "subscribe_rgbd": True,
+                "rgbd_cameras": 2,
+            }
+        )
         remappings = [
             ("rgbd_image0", "/rgbd_image/d435i"),
             ("rgbd_image1", "/rgbd_image/d455"),
@@ -160,11 +174,13 @@ def launch_setup(context, *args, **kwargs):
         ]
     else:
         # Single camera — subscribe directly
-        rtabmap_params.update({
-            "subscribe_depth": True,
-            "subscribe_rgb": True,
-            "subscribe_rgbd": False,
-        })
+        rtabmap_params.update(
+            {
+                "subscribe_depth": True,
+                "subscribe_rgb": True,
+                "subscribe_rgbd": False,
+            }
+        )
         if camera == "d435i":
             remappings = [
                 ("rgb/image", "/d435i/rgb/d435i_rgb/image_raw"),
@@ -216,23 +232,31 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "camera", default_value="dual", choices=["d435i", "d455", "dual"],
+                "camera",
+                default_value="dual",
+                choices=["d435i", "d455", "dual"],
                 description="Camera configuration.",
             ),
             DeclareLaunchArgument(
-                "map_name", default_value="",
+                "map_name",
+                default_value="",
                 description="Name of the map to load (REQUIRED).",
             ),
             DeclareLaunchArgument(
-                "maps_dir", default_value="~/cogni-nav-x0/maps",
+                "maps_dir",
+                default_value="~/cogni-nav-x0/maps",
                 description="Base directory containing map folders.",
             ),
             DeclareLaunchArgument(
-                "rviz", default_value="true", choices=["true", "false"],
+                "rviz",
+                default_value="true",
+                choices=["true", "false"],
                 description="Launch RViz.",
             ),
             DeclareLaunchArgument(
-                "use_sim_time", default_value="true", choices=["true", "false"],
+                "use_sim_time",
+                default_value="true",
+                choices=["true", "false"],
                 description="true for Gazebo, false for real robot.",
             ),
             OpaqueFunction(function=launch_setup),

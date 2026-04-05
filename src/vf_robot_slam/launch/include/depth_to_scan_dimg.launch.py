@@ -23,26 +23,25 @@ WHEN TO USE
     • range_min=1.1 m clips floor returns but also clips obstacles < 1.1 m
     • For close-obstacle detection use method:=pc2scan instead
 
-D435i LIMITATION
-────────────────
-  Camera at 1.773 m, 60° tilt downward.
-  Optical axis hits floor at: 1.773 / tan(60°) = 1.024 m.
-  Even the topmost image row is 31° below horizontal
-  → floor intersection at 2.95 m — still ground.
-  There is NO image row that sees a useful obstacle-height plane.
-  Workaround: range_min = 1.1 m clips floor at ≤1.024 m.
-  Tradeoff: obstacles closer than 1.1 m are invisible to this scan.
-
 output_frame notes
 ──────────────────
   D455: camera_d455_link — faces rear, so angle=0 draws backward ✓
         DO NOT use base_footprint — depthimage_to_laserscan does NOT
         rotate angle values, only stamps header.frame_id.
   D435i: base_footprint — faces forward, angle=0 = +X_base = forward ✓
+
+STARTUP ORDER (BUG FIX — 2026-04-05)
+─────────────────────────────────────
+  depthimage_to_laserscan uses LAZY SUBSCRIPTION — it will NOT subscribe
+  to its depth image input until at least one node subscribes to its /scan
+  output. If scan_merger starts AFTER the converters, the converters see
+  zero subscribers and go idle. The second launch "fixes" it because the
+  new scan_merger triggers the lazy check.
+
+  FIX: In dual mode, scan_merger MUST start BEFORE the converter nodes
+  so that when they check for subscribers, the merger is already listening.
 """
 
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -61,7 +60,7 @@ D455_PARAMS = {
 
 # ── D435i parameters — 60° tilt, 1.773 m height ─────────────────────────────
 D435I_PARAMS = {
-    "range_min": 1.1,   # clips floor at ≤1.024 m; blind zone < 1.1 m
+    "range_min": 1.1,  # clips floor at ≤1.024 m; blind zone < 1.1 m
     "range_max": 6.0,
     "scan_height": 1,
     "scan_time": 0.033,
@@ -71,6 +70,7 @@ D435I_PARAMS = {
 
 
 def _make_d455_node(name, scan_topic, use_sim_time):
+    """Create a depthimage_to_laserscan node for the D455 camera."""
     return Node(
         package="depthimage_to_laserscan",
         executable="depthimage_to_laserscan_node",
@@ -86,6 +86,7 @@ def _make_d455_node(name, scan_topic, use_sim_time):
 
 
 def _make_d435i_node(name, scan_topic, use_sim_time):
+    """Create a depthimage_to_laserscan node for the D435i camera."""
     return Node(
         package="depthimage_to_laserscan",
         executable="depthimage_to_laserscan_node",
@@ -106,111 +107,111 @@ def launch_setup(context, *args, **kwargs):
     sim_time = LaunchConfiguration("use_sim_time").perform(context)
     use_sim_time = sim_time.lower() == "true"
 
-    pkg_share = get_package_share_directory("vf_robot_slam")
-    merger_config = os.path.join(pkg_share, "config", "laser_merger", "merger.yaml")
     nodes = []
 
     # ── Single camera: d435i ─────────────────────────────────────────────────
     if camera == "d435i":
         nodes.append(
-            LogInfo(msg=[
-                "\n", "=" * 70, "\n",
-                "depth_to_scan [dimg]: D435i → /scan\n",
-                "  range_min=1.1 m (floor clipped), blind zone < 1.1 m\n",
-                "=" * 70, "\n",
-            ])
+            LogInfo(
+                msg=[
+                    "\n",
+                    "=" * 70,
+                    "\n",
+                    "depth_to_scan [dimg]: D435i → /scan\n",
+                    "  range_min=1.1 m (floor clipped), blind zone < 1.1 m\n",
+                    "=" * 70,
+                    "\n",
+                ]
+            )
         )
         nodes.append(_make_d435i_node("depth_to_scan_d435i", "/scan", use_sim_time))
 
     # ── Single camera: d455 ──────────────────────────────────────────────────
     elif camera == "d455":
         nodes.append(
-            LogInfo(msg=[
-                "\n", "=" * 70, "\n",
-                "depth_to_scan [dimg]: D455 → /scan\n",
-                "  output_frame=camera_d455_link, range_min=0.6 m\n",
-                "=" * 70, "\n",
-            ])
+            LogInfo(
+                msg=[
+                    "\n",
+                    "=" * 70,
+                    "\n",
+                    "depth_to_scan [dimg]: D455 → /scan\n",
+                    "  output_frame=camera_d455_link, range_min=0.6 m\n",
+                    "=" * 70,
+                    "\n",
+                ]
+            )
         )
         nodes.append(_make_d455_node("depth_to_scan_d455", "/scan", use_sim_time))
 
     # ── Dual camera ──────────────────────────────────────────────────────────
+    #
+    # CRITICAL STARTUP ORDER:
+    #   1. scan_merger FIRST  — subscribes to /scan_d435i and /scan_d455
+    #   2. depth_to_scan_d435i — checks for subscribers on /scan_d435i,
+    #                            finds scan_merger → activates depth input
+    #   3. depth_to_scan_d455  — same for /scan_d455
+    #
+    # If this order is reversed, the converter nodes start with zero
+    # subscribers and their lazy subscription keeps them idle forever.
+    # ─────────────────────────────────────────────────────────────────────────
     else:
-        nodes.append(_make_d435i_node("depth_to_scan_d435i", "/scan_d435i", use_sim_time))
+        # ── Step 1: Start scan_merger FIRST (if merging) ─────────────────────
+        if merge_scans.lower() == "true":
+            nodes.append(
+                LogInfo(
+                    msg=[
+                        "\n",
+                        "=" * 70,
+                        "\n",
+                        "depth_to_scan [dimg]: dual — scan_merger ACTIVE\n",
+                        "  /scan_d435i + /scan_d455 → /scan (merged)\n",
+                        "=" * 70,
+                        "\n",
+                    ]
+                )
+            )
+            nodes.append(
+                Node(
+                    package="vf_robot_slam",
+                    executable="scan_merger.py",
+                    name="scan_merger",
+                    output="screen",
+                    parameters=[
+                        {
+                            "use_sim_time": use_sim_time,
+                            "scan_topics": "/scan_d435i /scan_d455",
+                            "output_topic": "/scan",
+                            "output_frame": "base_footprint",
+                            "angle_min": -3.14159,
+                            "angle_max": 3.14159,
+                            "range_min": 0.1,
+                            "range_max": 6.0,
+                        }
+                    ],
+                )
+            )
+
+        # ── Step 2: Start converter nodes AFTER merger is subscribed ─────────
+        nodes.append(
+            _make_d435i_node("depth_to_scan_d435i", "/scan_d435i", use_sim_time)
+        )
         nodes.append(_make_d455_node("depth_to_scan_d455", "/scan_d455", use_sim_time))
 
-        if merge_scans.lower() == "true":
-            ira_found = False
-            try:
-                get_package_share_directory("ira_laser_tools")
-                ira_found = True
-            except Exception:
-                pass
-
-            if ira_found:
-                nodes.append(
-                    LogInfo(msg=[
-                        "\n", "=" * 70, "\n",
-                        "depth_to_scan [dimg]: dual — merger ACTIVE\n",
-                        "  /scan_d435i + /scan_d455 → /scan (merged)\n",
-                        "=" * 70, "\n",
-                    ])
-                )
-                nodes.append(
-                    Node(
-                        package="ira_laser_tools",
-                        executable="laserscan_multi_merger",
-                        name="laserscan_multi_merger",
-                        output="screen",
-                        parameters=[
-                            merger_config,
-                            {
-                                "use_sim_time": use_sim_time,
-                                "laserscan_topics": "/scan_d435i /scan_d455",
-                                "destination_frame": "base_footprint",
-                                "scan_destination_topic": "/scan",
-                                "angle_min": -3.14159,
-                                "angle_max": 3.14159,
-                                "range_min": 0.6,
-                                "range_max": 6.0,
-                            },
-                        ],
-                    )
-                )
-            else:
-                # Fallback: relay D455 scan to /scan (no duplicate processing)
-                nodes.append(
-                    LogInfo(msg=[
-                        "\n", "=" * 70, "\n",
-                        "depth_to_scan [dimg]: dual — ira_laser_tools NOT found\n",
-                        "  Fallback: /scan_d455 relayed to /scan (rear arc)\n",
-                        "  /scan_d435i available for Nav2 multi-source costmap\n",
-                        "  Install ira_laser_tools for merged /scan:\n",
-                        "    cd ~/cogni-nav-x0/src\n",
-                        "    git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2\n",
-                        "    cd ~/cogni-nav-x0 && colcon build --packages-select ira_laser_tools\n",
-                        "=" * 70, "\n",
-                    ])
-                )
-                nodes.append(
-                    Node(
-                        package="topic_tools",
-                        executable="relay",
-                        name="scan_relay",
-                        output="screen",
-                        parameters=[{"use_sim_time": use_sim_time}],
-                        arguments=["/scan_d455", "/scan"],
-                    )
-                )
-        else:
+        # ── No merge: warn the user ──────────────────────────────────────────
+        if merge_scans.lower() != "true":
             nodes.append(
-                LogInfo(msg=[
-                    "\n", "=" * 70, "\n",
-                    "depth_to_scan [dimg]: dual — merge_scans:=false\n",
-                    "  /scan_d435i + /scan_d455 published (no /scan)\n",
-                    "  AMCL will not work — use Nav2 multi-source costmap\n",
-                    "=" * 70, "\n",
-                ])
+                LogInfo(
+                    msg=[
+                        "\n",
+                        "=" * 70,
+                        "\n",
+                        "depth_to_scan [dimg]: dual — merge_scans:=false\n",
+                        "  /scan_d435i + /scan_d455 published (no /scan)\n",
+                        "  AMCL will not work — use Nav2 multi-source costmap\n",
+                        "=" * 70,
+                        "\n",
+                    ]
+                )
             )
 
     return nodes
@@ -219,9 +220,15 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     return LaunchDescription(
         [
-            DeclareLaunchArgument("camera", default_value="dual", choices=["d435i", "d455", "dual"]),
-            DeclareLaunchArgument("merge_scans", default_value="true", choices=["true", "false"]),
-            DeclareLaunchArgument("use_sim_time", default_value="true", choices=["true", "false"]),
+            DeclareLaunchArgument(
+                "camera", default_value="dual", choices=["d435i", "d455", "dual"]
+            ),
+            DeclareLaunchArgument(
+                "merge_scans", default_value="true", choices=["true", "false"]
+            ),
+            DeclareLaunchArgument(
+                "use_sim_time", default_value="true", choices=["true", "false"]
+            ),
             OpaqueFunction(function=launch_setup),
         ]
     )

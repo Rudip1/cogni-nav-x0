@@ -54,7 +54,7 @@ def _get_rtabmap_slam_params(database_path, delete_db, use_sim_time):
         # ── Time (CRITICAL for Gazebo) ──
         "use_sim_time": use_sim_time,
         # ── Frames ──
-        "frame_id": "base_footprint",   # must match odom child_frame_id
+        "frame_id": "base_footprint",  # must match odom child_frame_id
         "odom_frame_id": "odom",
         "map_frame_id": "map",
         "publish_tf": True,
@@ -68,9 +68,9 @@ def _get_rtabmap_slam_params(database_path, delete_db, use_sim_time):
         "Mem/IncrementalMemory": "true",
         "Mem/InitWMWithAllNodes": "false",
         # ── Registration — ICP avoids needing OpenGV for multi-camera ──
-        "Reg/Strategy": "1",           # 1=ICP
-        "Vis/EstimationType": "0",     # 0=3D-3D (not PnP, which needs OpenGV)
-        "Reg/Force3DoF": "true",       # 2D SLAM for ground robot
+        "Reg/Strategy": "1",  # 1=ICP
+        "Vis/EstimationType": "0",  # 0=3D-3D (not PnP, which needs OpenGV)
+        "Reg/Force3DoF": "true",  # 2D SLAM for ground robot
         # ── Optimizer ──
         "Optimizer/Strategy": "1",
         "Optimizer/Iterations": "20",
@@ -129,21 +129,27 @@ def launch_setup(context, *args, **kwargs):
     actions = []
 
     actions.append(
-        LogInfo(msg=[
-            "\n", "=" * 70, "\n",
-            "RTAB-Map SLAM Mode\n",
-            "=" * 70, "\n",
-            f"Camera:        {camera}\n",
-            f"Map name:      {map_name}\n",
-            f"Map folder:    {map_folder}\n",
-            f"Mode:          {mode_str}\n",
-            f"Sim time:      {use_sim_time}\n",
-            f"Frame ID:      base_footprint\n",
-            "\n",
-            "Save 2D map while running:\n",
-            f"  ros2 run nav2_map_server map_saver_cli -f {map_folder}/{map_name}\n",
-            "=" * 70, "\n",
-        ])
+        LogInfo(
+            msg=[
+                "\n",
+                "=" * 70,
+                "\n",
+                "RTAB-Map SLAM Mode\n",
+                "=" * 70,
+                "\n",
+                f"Camera:        {camera}\n",
+                f"Map name:      {map_name}\n",
+                f"Map folder:    {map_folder}\n",
+                f"Mode:          {mode_str}\n",
+                f"Sim time:      {use_sim_time}\n",
+                f"Frame ID:      base_footprint\n",
+                "\n",
+                "Save 2D map while running:\n",
+                f"  ros2 run nav2_map_server map_saver_cli -f {map_folder}/{map_name}\n",
+                "=" * 70,
+                "\n",
+            ]
+        )
     )
 
     # ── Include rgbd_sync (shared module — no more copy-paste) ───────────────
@@ -164,12 +170,14 @@ def launch_setup(context, *args, **kwargs):
     rtabmap_params = _get_rtabmap_slam_params(database_path, delete_db, use_sim_time)
 
     if camera == "dual":
-        rtabmap_params.update({
-            "subscribe_depth": False,
-            "subscribe_rgb": False,
-            "subscribe_rgbd": True,
-            "rgbd_cameras": 2,
-        })
+        rtabmap_params.update(
+            {
+                "subscribe_depth": False,
+                "subscribe_rgb": False,
+                "subscribe_rgbd": True,
+                "rgbd_cameras": 2,
+            }
+        )
         remappings = [
             ("rgbd_image0", "/rgbd_image/d435i"),
             ("rgbd_image1", "/rgbd_image/d455"),
@@ -178,11 +186,13 @@ def launch_setup(context, *args, **kwargs):
         ]
     else:
         # Single camera — subscribe directly, no rgbd_sync needed
-        rtabmap_params.update({
-            "subscribe_depth": True,
-            "subscribe_rgb": True,
-            "subscribe_rgbd": False,
-        })
+        rtabmap_params.update(
+            {
+                "subscribe_depth": True,
+                "subscribe_rgb": True,
+                "subscribe_rgbd": False,
+            }
+        )
         if camera == "d435i":
             remappings = [
                 ("rgb/image", "/d435i/rgb/d435i_rgb/image_raw"),
@@ -234,27 +244,37 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "camera", default_value="dual", choices=["d435i", "d455", "dual"],
+                "camera",
+                default_value="dual",
+                choices=["d435i", "d455", "dual"],
                 description="Camera configuration.",
             ),
             DeclareLaunchArgument(
-                "map_name", default_value="default_map",
+                "map_name",
+                default_value="default_map",
                 description="Name for the map folder and .db file.",
             ),
             DeclareLaunchArgument(
-                "maps_dir", default_value="~/cogni-nav-x0/maps",
+                "maps_dir",
+                default_value="~/cogni-nav-x0/maps",
                 description="Base directory where map folders are created.",
             ),
             DeclareLaunchArgument(
-                "rviz", default_value="true", choices=["true", "false"],
+                "rviz",
+                default_value="true",
+                choices=["true", "false"],
                 description="Launch RViz.",
             ),
             DeclareLaunchArgument(
-                "new_map", default_value="true", choices=["true", "false"],
+                "new_map",
+                default_value="true",
+                choices=["true", "false"],
                 description="Start fresh map (true) or continue existing (false).",
             ),
             DeclareLaunchArgument(
-                "use_sim_time", default_value="true", choices=["true", "false"],
+                "use_sim_time",
+                default_value="true",
+                choices=["true", "false"],
                 description="true for Gazebo, false for real robot.",
             ),
             OpaqueFunction(function=launch_setup),
