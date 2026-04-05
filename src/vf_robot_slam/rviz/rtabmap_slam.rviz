@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /TF1/Frames1
+        - /d455_LaserScan1/Topic1
         - /Odometry1/Covariance1/Position1
       Splitter Ratio: 0.5
     Tree Height: 455
@@ -357,23 +358,23 @@ Visualization Manager:
         Min Value: -10
         Value: true
       Axis: Z
-      Channel Name: intensity
+      Channel Name: z
       Class: rviz_default_plugins/LaserScan
       Color: 255; 0; 0
-      Color Transformer: ""
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
+      Max Color: 255; 0; 0
+      Max Intensity: 0.0005207289941608906
       Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: LaserScan
-      Position Transformer: ""
+      Min Intensity: -3.5399814805714414e-05
+      Name: merged_LaserScan
+      Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.05000000074505806
-      Style: Flat Squares
+      Style: Points
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -387,27 +388,27 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 0.0011084087891504169
+        Min Value: 0.001001547439955175
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/LaserScan
-      Color: 0; 255; 0
-      Color Transformer: ""
+      Color: 255; 0; 255
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
-      Max Color: 255; 255; 255
+      Max Color: 255; 0; 255
       Max Intensity: 4096
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: LaserScan_D435i
-      Position Transformer: ""
+      Name: d435i_LaserScan
+      Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 2
       Size (m): 0.05000000074505806
-      Style: Flat Squares
+      Style: Points
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -421,8 +422,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 0.0017846585251390934
+        Min Value: 0.0011704574571922421
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -432,16 +433,16 @@ Visualization Manager:
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
-      Max Color: 255; 255; 255
+      Max Color: 0; 0; 255
       Max Intensity: 4096
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: LaserScan_D455
+      Name: d455_LaserScan
       Position Transformer: ""
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.05000000074505806
-      Style: Flat Squares
+      Size (Pixels): 2
+      Size (m): 0.10000000149011612
+      Style: Points
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -591,25 +592,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 4.244363307952881
+      Distance: 12.341510772705078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 6.879626750946045
-        Y: -0.22393354773521423
-        Z: 2.6383237838745117
+        X: 5.59725284576416
+        Y: 2.6289379596710205
+        Z: -0.5460191965103149
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8902032971382141
+      Pitch: 0.7152032256126404
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.0650010108947754
+      Yaw: 2.360001802444458
     Saved: ~
 Window Geometry:
   D435i RGB:
