@@ -1,22 +1,24 @@
 cmake_minimum_required(VERSION 3.8)
-project(nav2_bringup)
+project(vf_robot_bringup)
 
 find_package(ament_cmake REQUIRED)
-find_package(backward_ros REQUIRED)
-find_package(nav2_common REQUIRED)
-find_package(navigation2 REQUIRED)
 
-nav2_package()
+# ── Install launch files ──
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
 
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
-install(DIRECTORY maps DESTINATION share/${PROJECT_NAME})
-install(DIRECTORY graphs DESTINATION share/${PROJECT_NAME})
-install(DIRECTORY rviz DESTINATION share/${PROJECT_NAME})
-install(DIRECTORY params DESTINATION share/${PROJECT_NAME})
+# ── Install config files ──
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_test_dependencies()
-endif()
+# ── Install rviz config ──
+# (already inside config/, but kept explicit for clarity)
+
+# ── ament resource marker ──
+install(FILES resource/${PROJECT_NAME}
+  DESTINATION share/ament_index/resource_index/packages
+)
 
 ament_package()

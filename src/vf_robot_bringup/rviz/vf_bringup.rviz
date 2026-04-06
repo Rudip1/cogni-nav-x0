@@ -1,0 +1,201 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: rviz_common/Time
+    Name: Time
+    SyncMode: 0
+    SyncSource: LaserScan
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    # ── Robot Model ──
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Topic:
+        Value: /robot_description
+      Enabled: true
+      Alpha: 1.0
+      Visual Enabled: true
+      Collision Enabled: false
+
+    # ── TF Frames ──
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: false
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.3
+      Update Interval: 0
+
+    # ── LaserScan ──
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Size (m): 0.03
+      Color Transformer: FlatColor
+      Color: 255; 0; 0
+      Style: Flat Squares
+      Min Intensity: 0
+      Max Intensity: 4096
+
+    # ── Map (occupancy grid) ──
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Enabled: true
+      Topic:
+        Value: /map
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: true
+
+    # ── Global Costmap ──
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Alpha: 0.3
+      Color Scheme: costmap
+
+    # ── Local Costmap ──
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Alpha: 0.3
+      Color Scheme: costmap
+
+    # ── Global Path (from planner) ──
+    - Class: rviz_default_plugins/Path
+      Name: Global Path
+      Enabled: true
+      Topic:
+        Value: /plan
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Color: 0; 255; 0
+      Alpha: 1.0
+      Line Style: Lines
+      Line Width: 0.03
+
+    # ── Local Path (from controller) ──
+    - Class: rviz_default_plugins/Path
+      Name: Local Path
+      Enabled: true
+      Topic:
+        Value: /local_plan
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Color: 255; 255; 0
+      Alpha: 1.0
+      Line Style: Lines
+      Line Width: 0.02
+
+    # ── Odometry ──
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Enabled: false
+      Topic:
+        Value: /odom
+      Keep: 1
+      Shape:
+        Alpha: 1.0
+        Color: 255; 85; 0
+        Value: Arrow
+
+    # ── AMCL Particle Cloud ──
+    - Class: rviz_default_plugins/PoseArray
+      Name: AMCL Particles
+      Enabled: true
+      Topic:
+        Value: /particle_cloud
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Shape:
+        Alpha: 0.5
+        Color: 0; 180; 0
+        Value: Arrow (Flat)
+      Arrow Length: 0.05
+
+    # ── Grid ──
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Line Style:
+        Value: Lines
+      Color: 160; 160; 164
+      Plane Cell Count: 20
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+
+  Tools:
+    # The tools toolbar — includes 2D Pose Estimate and Nav2 Goal
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+    # 2D Pose Estimate → publishes to /initialpose (used by AMCL mode)
+    - Class: rviz_default_plugins/SetInitialPose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891909122467
+      Topic:
+        Value: /initialpose
+    # Nav2 Goal → publishes to /goal_pose (used by all modes)
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+    # Publish Point → click to publish point (debugging)
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic:
+        Value: /clicked_point
+
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 10
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.78
+      Target Frame: <Fixed Frame>
+      Yaw: 0.78
+
+  Window Geometry:
+    Displays:
+      collapsed: false
+    Height: 900
+    Width: 1400
+    X: 50
+    Y: 50

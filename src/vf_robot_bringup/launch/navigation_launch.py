@@ -1,81 +1,133 @@
-#!/usr/bin/env python3
+# =============================================================================
+# vf_robot_bringup / navigation_launch.py
+# =============================================================================
+# Nav2 navigation stack: controller_server, planner_server, behavior_server,
+# bt_navigator, waypoint_follower, velocity_smoother, lifecycle_manager.
+#
+# This file is modelled after nav2_bringup/navigation_launch.py but tuned
+# for the ViroFighter UVC-1 robot.
+#
+# NOT launched directly — included by bringup_launch.py.
+# =============================================================================
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    # ── Arguments ──
+    params_file = LaunchConfiguration('params_file')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
-    # Nav2 package
-    pkg_nav2 = get_package_share_directory("nav2_bringup")
+    # ── Lifecycle-managed Nav2 nodes ──
+    #
+    # All these nodes are managed by nav2_lifecycle_manager.
+    # They start in UNCONFIGURED state and lifecycle_manager
+    # transitions them: configure → activate in order.
 
-    # My package
-    pkg_uvc1 = get_package_share_directory("uvc1_gazebo")
-
-    # Path to Nav2 package navigation_launch.py
-    nav2_launch = os.path.join(
-        pkg_nav2,
-        "launch",
-        "navigation_launch.py",
+    controller_server = Node(
+        package='nav2_controller',
+        executable='controller_server',
+        name='controller_server',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
     )
 
-    # Default params file inside my package
-    default_params = os.path.join(
-        pkg_uvc1,
-        "config",
-        "nav2_params.yaml",
+    planner_server = Node(
+        package='nav2_planner',
+        executable='planner_server',
+        name='planner_server',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
     )
 
-    use_sim_time = LaunchConfiguration("use_sim_time")
-    params_file = LaunchConfiguration("params_file")
-
-    declare_use_sim_time = DeclareLaunchArgument(
-        "use_sim_time",
-        default_value="true",
-        description="Use simulation clock",
+    behavior_server = Node(
+        package='nav2_behaviors',
+        executable='behavior_server',
+        name='behavior_server',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
     )
 
-    declare_params = DeclareLaunchArgument(
-        "params_file",
-        default_value=default_params,
-        description="Nav2 parameters file",
+    bt_navigator = Node(
+        package='nav2_bt_navigator',
+        executable='bt_navigator',
+        name='bt_navigator',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
     )
 
-    navigation = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(nav2_launch),
-        launch_arguments={
-            "use_sim_time": use_sim_time,
-            "params_file": params_file,
-            # "autostart": "true",  # ensures lifecycle nodes activate
-            # "use_composition": "False",  # disables container issues
-        }.items(),
+    waypoint_follower = Node(
+        package='nav2_waypoint_follower',
+        executable='waypoint_follower',
+        name='waypoint_follower',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
     )
 
-    ld = LaunchDescription()
+    velocity_smoother = Node(
+        package='nav2_velocity_smoother',
+        executable='velocity_smoother',
+        name='velocity_smoother',
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[params_file, {'use_sim_time': use_sim_time}],
+        remappings=[
+            ('cmd_vel', 'cmd_vel_nav'),         # input from controller
+            ('cmd_vel_smoothed', 'cmd_vel'),     # output to robot
+        ],
+    )
 
-    ld.add_action(declare_use_sim_time)
-    ld.add_action(declare_params)
-    ld.add_action(navigation)
+    # ── Lifecycle Manager ──
+    # Manages all Nav2 nodes above.
+    # Order matters: controller_server must be active before bt_navigator
+    # sends goals to it.
 
-    return ld
+    lifecycle_manager_navigation = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_navigation',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'autostart': True,
+            'node_names': [
+                'controller_server',
+                'planner_server',
+                'behavior_server',
+                'bt_navigator',
+                'waypoint_follower',
+                'velocity_smoother',
+            ],
+        }],
+    )
 
+    return LaunchDescription([
+        DeclareLaunchArgument('params_file', description='Nav2 params YAML'),
+        DeclareLaunchArgument('use_sim_time', default_value='true'),
 
-# Launch Works Like This
-# Default
-# ros2 launch uvc1_gazebo navigation_launch.py
-
-# Uses:
-# uvc1_gazebo/config/nav2_params.yaml
-
-# Override if needed
-# ros2 launch uvc1_gazebo navigation_launch.py params_file:=/home/pravin/test.yaml
-
-# ros2 launch uvc1_gazebo navigation_launch.py \
-# params_file:=/home/pravin/test.yaml
+        controller_server,
+        planner_server,
+        behavior_server,
+        bt_navigator,
+        waypoint_follower,
+        velocity_smoother,
+        lifecycle_manager_navigation,
+    ])
