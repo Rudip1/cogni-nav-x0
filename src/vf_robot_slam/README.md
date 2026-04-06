@@ -22,22 +22,23 @@
 6. [Complete Command Reference — Depth to LaserScan](#-complete-command-reference--depth-to-laserscan)
 7. [Map Management — Save, Export, Reuse](#-map-management--save-export-reuse)
 8. [Operating Modes (4 Modes)](#️-operating-modes-4-modes)
-9. [Verification & Diagnostics](#-verification--diagnostics)
-10. [Troubleshooting](#-troubleshooting)
+9. [Validation Matrix — Who Provides What](#-validation-matrix--who-provides-what)
+10. [Verification & Diagnostics](#-verification--diagnostics)
+11. [Troubleshooting](#-troubleshooting)
 
 **For Developers**
 
-11. [Package Structure](#-package-structure)
-12. [Architecture — Modular Launch Design](#️-architecture--modular-launch-design)
-13. [Camera Configuration — D435i vs D455](#-camera-configuration--d435i-vs-d455)
-14. [Two Depth-to-Scan Methods — dimg vs pc2scan](#-two-depth-to-scan-methods--dimg-vs-pc2scan)
-15. [Custom Nodes — scan_merger.py & pc_to_scan.py](#-custom-nodes--scan_mergerpy--pc_to_scanpy)
-16. [Dual Camera Scan Merging](#-dual-camera-scan-merging)
-17. [Launch Arguments Reference](#️-launch-arguments-reference)
-18. [Topics & TF Published](#-topics--tf-published)
-19. [Nav2 Costmap Configuration](#-nav2-costmap-configuration)
-20. [Hard-Won Lessons](#-hard-won-lessons)
-21. [Dependencies](#-dependencies)
+12. [Package Structure](#-package-structure)
+13. [Architecture — Modular Launch Design](#️-architecture--modular-launch-design)
+14. [Camera Configuration — D435i vs D455](#-camera-configuration--d435i-vs-d455)
+15. [Two Depth-to-Scan Methods — dimg vs pc2scan](#-two-depth-to-scan-methods--dimg-vs-pc2scan)
+16. [Custom Nodes — scan_merger.py & pc_to_scan.py](#-custom-nodes--scan_mergerpy--pc_to_scanpy)
+17. [Dual Camera Scan Merging](#-dual-camera-scan-merging)
+18. [Launch Arguments Reference](#️-launch-arguments-reference)
+19. [Topics & TF Published](#-topics--tf-published)
+20. [Nav2 Costmap Configuration](#-nav2-costmap-configuration)
+21. [Hard-Won Lessons](#-hard-won-lessons)
+22. [Dependencies](#-dependencies)
 
 ---
 
@@ -49,7 +50,18 @@
 
 `vf_robot_slam` provides all SLAM, localization, and depth-to-laserscan capabilities for the ViroFighter UVC-1 robot. The robot has **no 2D lidar** — it relies entirely on Intel RealSense depth cameras for perception, making visual SLAM the core approach.
 
-**What this package does:**
+### Where this package fits in the system
+
+The cogni-nav-x0 project is split into modular packages. Each owns a specific concern:
+
+| Package | Status | Responsibility | Key outputs |
+|---------|--------|---------------|-------------|
+| `vf_robot_description` | ✅ Done | URDF/xacro, sensor frames, robot model | `/robot_description`, all static TF (`base_link → sensors`) |
+| `vf_robot_gazebo` | ✅ Done | Gazebo simulation, sensor plugins, world files | `/odom`, `odom→base_footprint` TF, camera topics, `/clock` |
+| **`vf_robot_slam`** | **🔧 Active** | **SLAM, localization, depth-to-scan** | **`/map`, `map→odom` TF, `/scan`** |
+| `vf_robot_navigation` | 📋 Planned | Planners, controllers, costmaps, bringup | Nav2 stack (future) |
+
+### What this package does
 
 | Function | Launch File | What it produces |
 |----------|------------|-----------------|
@@ -57,13 +69,26 @@
 | Navigate in an existing map | `rtabmap_loc.launch.py` | `/map` topic, `map→odom` TF from loaded `.db` |
 | Convert depth to LaserScan | `depth_to_scan.launch.py` | `/scan` topic for Nav2 / AMCL / SLAM Toolbox |
 
-**Camera options for every launch:**
+### Camera options for every launch
 
 | Value | Camera(s) Used | Coverage |
 |-------|---------------|----------|
 | `camera:=d435i` | Front D435i only | ~87° front arc |
 | `camera:=d455` | Rear D455 only | ~87° rear arc |
 | `camera:=dual` | Both cameras | ~174° combined (front + rear) |
+
+### The 4 operating modes at a glance
+
+This package supports 4 mutually exclusive operating modes. Each mode has exactly ONE `/map` publisher and ONE `map→odom` TF publisher — never run two simultaneously.
+
+| Mode | Map source | `map→odom` TF source | `/scan` source | Map file needed |
+|------|-----------|---------------------|---------------|----------------|
+| **1. RTAB-Map SLAM** | RTAB-Map (builds live) | RTAB-Map | `depth_to_scan` | None (creates `.db`) |
+| **2. RTAB-Map Loc** | RTAB-Map (from `.db`) | RTAB-Map | `depth_to_scan` | `.db` from Mode 1 |
+| **3. AMCL** | `map_server` (from `.pgm`) | AMCL | `depth_to_scan` | `.pgm` + `.yaml` from Mode 1 |
+| **4. SLAM Toolbox** | SLAM Toolbox (builds live) | SLAM Toolbox | `depth_to_scan` | None (or serialized map) |
+
+> See [Operating Modes](#️-operating-modes-4-modes) for full terminal commands and [Validation Matrix](#-validation-matrix--who-provides-what) for the complete cross-check table.
 
 ---
 
@@ -101,7 +126,7 @@ ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_offic
 # Terminal 3: Depth to LaserScan (for Nav2 costmap — run alongside SLAM or localization)
 ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
 
-# Terminal 4: Drive the robot (or use rqt steering)
+# Terminal 4: Drive the robot
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
@@ -470,6 +495,122 @@ ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
 
 # Terminal 3: Nav2 with SLAM Toolbox (future)
 ros2 launch vf_robot_navigation bringup_slam_toolbox.launch.py
+```
+
+---
+
+## 📊 Validation Matrix — Who Provides What
+
+This is the master cross-check table. For Nav2 autonomous navigation to work, **every row must have a ✅ in the mode you're running.** If any row is missing, navigation will fail.
+
+### Required topics and TF
+
+| Requirement | Source package | Mode 1 (SLAM) | Mode 2 (Loc) | Mode 3 (AMCL) | Mode 4 (SLAM Toolbox) |
+|-------------|--------------|----------------|---------------|----------------|----------------------|
+| `/map` | varies | ✅ RTAB-Map | ✅ RTAB-Map (.db) | ✅ map_server (.pgm) | ✅ SLAM Toolbox |
+| `map→odom` TF | varies | ✅ RTAB-Map | ✅ RTAB-Map | ✅ AMCL | ✅ SLAM Toolbox |
+| `/scan` | `vf_robot_slam` | ✅ depth_to_scan | ✅ depth_to_scan | ✅ depth_to_scan | ✅ depth_to_scan |
+| `/odom` | `vf_robot_gazebo` | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive |
+| `odom→base_footprint` TF | `vf_robot_gazebo` | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive | ✅ Gazebo diff_drive |
+| `base_link→sensor` TFs | `vf_robot_description` | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub |
+| `/robot_description` | `vf_robot_description` | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub |
+| `/clock` | `vf_robot_gazebo` | ✅ Gazebo | ✅ Gazebo | ✅ Gazebo | ✅ Gazebo |
+| Nav2 planners/controllers | `vf_robot_navigation` | 📋 future | 📋 future | 📋 future | 📋 future |
+
+### Which package provides each launch
+
+| Launch file | Package | Used in modes |
+|-------------|---------|--------------|
+| `vf_my_world_xacro.launch.py` | `vf_robot_gazebo` | All (simulation) |
+| `rtabmap_slam.launch.py` | `vf_robot_slam` | Mode 1 only |
+| `rtabmap_loc.launch.py` | `vf_robot_slam` | Mode 2 only |
+| `depth_to_scan.launch.py` | `vf_robot_slam` | All modes |
+| `bringup_amcl.launch.py` | `vf_robot_navigation` | Mode 3 only (future) |
+| `bringup_slam_toolbox.launch.py` | `vf_robot_navigation` | Mode 4 only (future) |
+
+### Map file requirements per mode
+
+| Mode | Map file needed | Format | How to create it |
+|------|----------------|--------|-----------------|
+| 1. RTAB-Map SLAM | None | — | Mode 1 creates the map |
+| 2. RTAB-Map Loc | `<name>.db` | RTAB-Map database | Auto-saved on Ctrl+C from Mode 1 |
+| 3. AMCL | `<name>.pgm` + `<name>.yaml` | 2D occupancy grid | `map_saver_cli` during Mode 1, or export from `.db` |
+| 4. SLAM Toolbox | None (or serialized map) | — | Mode 4 creates the map (or loads serialized) |
+
+### Per-mode node flow (dual camera, Gazebo)
+
+**Mode 1 — RTAB-Map SLAM**
+```
+Gazebo ──► /odom, odom→base_footprint TF
+       ──► /d435i/rgb/..., /d435i/depth/..., /d455/rgb/..., /d455/depth/...
+
+rgbd_sync_d435i ──► /rgbd_image/d435i ──┐
+rgbd_sync_d455  ──► /rgbd_image/d455  ──┤
+                                        └──► rtabmap (SLAM) ──► /map, map→odom TF, .db
+
+pc_to_scan_d435i ──► /scan_d435i ──┐
+pc_to_scan_d455  ──► /scan_d455  ──┤
+                                   └──► scan_merger ──► /scan ──► [Nav2 costmap]
+```
+
+**Mode 2 — RTAB-Map Localization**
+```
+Gazebo ──► /odom, odom→base_footprint TF
+       ──► /d435i/rgb/..., /d435i/depth/..., /d455/rgb/..., /d455/depth/...
+
+rgbd_sync_d435i ──► /rgbd_image/d435i ──┐
+rgbd_sync_d455  ──► /rgbd_image/d455  ──┤
+                                        └──► rtabmap (LOC, loads .db) ──► /map, map→odom TF
+
+pc_to_scan_d435i ──► /scan_d435i ──┐
+pc_to_scan_d455  ──► /scan_d455  ──┤
+                                   └──► scan_merger ──► /scan ──► [Nav2 costmap]
+```
+
+**Mode 3 — AMCL (future)**
+```
+Gazebo ──► /odom, odom→base_footprint TF
+       ──► /d435i/depth/..., /d455/depth/...
+
+pc_to_scan_d435i ──► /scan_d435i ──┐
+pc_to_scan_d455  ──► /scan_d455  ──┤
+                                   └──► scan_merger ──► /scan ──► AMCL ──► map→odom TF
+
+map_server (loads .pgm/.yaml) ──► /map
+```
+
+**Mode 4 — SLAM Toolbox (future)**
+```
+Gazebo ──► /odom, odom→base_footprint TF
+       ──► /d435i/depth/..., /d455/depth/...
+
+pc_to_scan_d435i ──► /scan_d435i ──┐
+pc_to_scan_d455  ──► /scan_d455  ──┤
+                                   └──► scan_merger ──► /scan ──► SLAM Toolbox ──► /map, map→odom TF
+```
+
+### Quick self-check commands
+
+After launching any mode, verify every requirement is met:
+
+```bash
+# 1. /map topic is publishing
+ros2 topic hz /map
+
+# 2. map→odom TF exists
+ros2 run tf2_ros tf2_echo map odom
+
+# 3. /scan topic is publishing
+ros2 topic hz /scan
+
+# 4. odom→base_footprint TF exists
+ros2 run tf2_ros tf2_echo odom base_footprint
+
+# 5. Full TF chain is connected (saves PDF)
+ros2 run tf2_tools view_frames
+
+# 6. All expected topics exist
+ros2 topic list | grep -E "^/(map|scan|odom|robot_description|clock)$"
 ```
 
 ---
