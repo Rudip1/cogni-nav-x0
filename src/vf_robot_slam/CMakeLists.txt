@@ -8,9 +8,10 @@ endif()
 # Find dependencies
 find_package(ament_cmake REQUIRED)
 
-# Install Python scripts (scan_merger node)
+# Install Python scripts
 install(PROGRAMS
   scripts/scan_merger.py
+  scripts/pc_to_scan.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

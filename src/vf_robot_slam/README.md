@@ -12,22 +12,36 @@
 
 ## 📋 Table of Contents
 
-- [🌟 Overview](#-overview)
-- [⚡ Quick Start](#-quick-start)
-- [📁 Package Structure](#-package-structure)
-- [🏗️ Architecture: Modular Launch Design](#️-architecture-modular-launch-design)
-- [📷 Camera Configuration](#-camera-configuration)
-- [🔀 Two Depth-to-Scan Methods: dimg vs pc2scan](#-two-depth-to-scan-methods-dimg-vs-pc2scan)
-- [🔗 Dual Camera Scan Merging](#-dual-camera-scan-merging)
-- [🚀 Launch Files](#-launch-files)
-- [🗺️ Operating Modes (4 Modes)](#️-operating-modes-4-modes)
-- [📦 Map Storage & Workflow](#-map-storage--workflow)
-- [⚙️ Launch Arguments Reference](#️-launch-arguments-reference)
-- [📡 Topics & TF Published](#-topics--tf-published)
-- [🔧 Nav2 Costmap Configuration](#-nav2-costmap-configuration)
-- [📖 All Commands Reference](#-all-commands-reference)
-- [🐛 Troubleshooting](#-troubleshooting)
-- [📄 License](#-license)
+**For Users (Operators)**
+
+1. [Overview](#-overview)
+2. [Prerequisites & Build](#-prerequisites--build)
+3. [Quick Start — SLAM in 4 Terminals](#-quick-start--slam-in-4-terminals)
+4. [Complete Command Reference — SLAM](#-complete-command-reference--slam)
+5. [Complete Command Reference — Localization](#-complete-command-reference--localization)
+6. [Complete Command Reference — Depth to LaserScan](#-complete-command-reference--depth-to-laserscan)
+7. [Map Management — Save, Export, Reuse](#-map-management--save-export-reuse)
+8. [Operating Modes (4 Modes)](#️-operating-modes-4-modes)
+9. [Verification & Diagnostics](#-verification--diagnostics)
+10. [Troubleshooting](#-troubleshooting)
+
+**For Developers**
+
+11. [Package Structure](#-package-structure)
+12. [Architecture — Modular Launch Design](#️-architecture--modular-launch-design)
+13. [Camera Configuration — D435i vs D455](#-camera-configuration--d435i-vs-d455)
+14. [Two Depth-to-Scan Methods — dimg vs pc2scan](#-two-depth-to-scan-methods--dimg-vs-pc2scan)
+15. [Custom Nodes — scan_merger.py & pc_to_scan.py](#-custom-nodes--scan_mergerpy--pc_to_scanpy)
+16. [Dual Camera Scan Merging](#-dual-camera-scan-merging)
+17. [Launch Arguments Reference](#️-launch-arguments-reference)
+18. [Topics & TF Published](#-topics--tf-published)
+19. [Nav2 Costmap Configuration](#-nav2-costmap-configuration)
+20. [Hard-Won Lessons](#-hard-won-lessons)
+21. [Dependencies](#-dependencies)
+
+---
+
+# FOR USERS (OPERATORS)
 
 ---
 
@@ -35,30 +49,31 @@
 
 `vf_robot_slam` provides all SLAM, localization, and depth-to-laserscan capabilities for the ViroFighter UVC-1 robot. The robot has **no 2D lidar** — it relies entirely on Intel RealSense depth cameras for perception, making visual SLAM the core approach.
 
-**Key responsibilities:**
+**What this package does:**
 
-- 🗺️ RTAB-Map SLAM (build new maps with RGB-D cameras)
-- 📍 RTAB-Map Localization (navigate in previously built maps)
-- 🔄 Depth-to-LaserScan conversion (for Nav2 / AMCL / SLAM Toolbox compatibility)
-- 🔀 Dual camera scan merging (via `ira_laser_tools` or `topic_tools relay` fallback)
+| Function | Launch File | What it produces |
+|----------|------------|-----------------|
+| Build a new map | `rtabmap_slam.launch.py` | `/map` topic, `map→odom` TF, `.db` database |
+| Navigate in an existing map | `rtabmap_loc.launch.py` | `/map` topic, `map→odom` TF from loaded `.db` |
+| Convert depth to LaserScan | `depth_to_scan.launch.py` | `/scan` topic for Nav2 / AMCL / SLAM Toolbox |
 
-**Design principles:**
+**Camera options for every launch:**
 
-- **Modular launch architecture** — reusable `include/` building blocks, no copy-paste
-- **Single entry point** — `depth_to_scan.launch.py` routes to the correct method
-- **All parameters inline** — no external YAML config files that drift out of sync
-- **Future-proof** — designed for integration with `vf_robot_navigation`
+| Value | Camera(s) Used | Coverage |
+|-------|---------------|----------|
+| `camera:=d435i` | Front D435i only | ~87° front arc |
+| `camera:=d455` | Rear D455 only | ~87° rear arc |
+| `camera:=dual` | Both cameras | ~174° combined (front + rear) |
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Prerequisites & Build
 
-### Prerequisites
+### Install dependencies
 
 ```bash
 sudo apt install ros-humble-rtabmap-ros \
                  ros-humble-depthimage-to-laserscan \
-                 ros-humble-pointcloud-to-laserscan \
                  ros-humble-topic-tools
 ```
 
@@ -70,296 +85,333 @@ colcon build --packages-select vf_robot_slam --symlink-install
 source install/setup.bash
 ```
 
-### Launch SLAM (Gazebo must be running first)
+---
+
+## 🚀 Quick Start — SLAM in 4 Terminals
+
+The fastest way to build a map in Gazebo:
 
 ```bash
-# Terminal 1: Gazebo
+# Terminal 1: Gazebo simulation
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: RTAB-Map SLAM
+# Terminal 2: RTAB-Map SLAM (builds the map)
 ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
 
-# Terminal 3: Depth to LaserScan (for Nav2 costmap)
+# Terminal 3: Depth to LaserScan (for Nav2 costmap — run alongside SLAM or localization)
 ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
 
-# Terminal 4: Drive the robot
+# Terminal 4: Drive the robot (or use rqt steering)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
----
+**What happens:**
+1. Gazebo starts the simulated world with the ViroFighter robot
+2. RTAB-Map starts building a 3D map — the `map` TF frame appears after ~3–10 seconds
+3. Depth-to-scan produces `/scan` for Nav2 costmaps
+4. You drive the robot to explore the environment
 
-## 📁 Package Structure
-
-```
-vf_robot_slam/
-├── CMakeLists.txt
-├── package.xml
-├── README.md
-├── config/
-│   ├── cameras/                          # Camera topic/frame reference
-│   │   ├── d435i.yaml                    #   D435i topics, frames, specs
-│   │   ├── d455.yaml                     #   D455 topics, frames, specs
-│   │   └── dual.yaml                     #   Both cameras combined
-│   └── laser_merger/
-│       └── merger.yaml                   # ira_laser_tools config (loaded by launch)
-├── launch/
-│   ├── rtabmap_slam.launch.py            # Mode 1: RTAB-Map SLAM
-│   ├── rtabmap_loc.launch.py             # Mode 2: RTAB-Map Localization
-│   ├── depth_to_scan.launch.py           # Router → picks dimg or pc2scan method
-│   └── include/                          # Reusable building blocks
-│       ├── rgbd_sync.launch.py           #   RGBD sync nodes (shared by slam + loc)
-│       ├── depth_to_scan_dimg.launch.py  #   depthimage_to_laserscan (Gazebo-fast)
-│       └── depth_to_scan_pc2scan.launch.py # pointcloud_to_laserscan (real robot)
-└── rviz/
-    ├── rtabmap_slam.rviz
-    └── rtabmap_loc.rviz
-
-# Maps stored OUTSIDE the package at workspace level:
-~/cogni-nav-x0/maps/                      # Auto-created by launch files
-```
-
-### Why no config YAML files for RTAB-Map parameters?
-
-All RTAB-Map parameters are defined **inline** in the launch files with detailed comments explaining *why* each value is set. This is intentional:
-
-- ROS 2 YAML loading requires the exact node name as the top-level key — node names change depending on camera mode, so no single YAML can serve all modes
-- Inline parameters with comments serve as both config AND documentation
-- No risk of YAML files drifting out of sync with actual launch behavior
+**When done mapping:** press Ctrl+C in Terminal 2 — `my_office.db` saves automatically.
 
 ---
 
-## 🏗️ Architecture: Modular Launch Design
+## 🗺️ Complete Command Reference — SLAM
 
-The launch files use an `include/` folder to eliminate code duplication. Think of it as building with reusable blocks.
+RTAB-Map SLAM builds a new map. Every command below assumes Gazebo is already running.
 
-### The Problem (Before)
-
-`rtabmap_slam.launch.py` and `rtabmap_loc.launch.py` both contained **identical** rgbd_sync node blocks (~40 lines each). Any fix had to be applied in two places — miss one and you get a bug that only shows up in one mode.
-
-### The Solution
-
-```
-include/rgbd_sync.launch.py          ← Defines sync nodes ONCE
-         │
-         ├── rtabmap_slam.launch.py   Includes rgbd_sync + adds RTAB-Map SLAM
-         └── rtabmap_loc.launch.py    Includes rgbd_sync + adds RTAB-Map LOC
-```
-
-Same pattern for depth-to-scan — one router, two methods:
-
-```
-depth_to_scan.launch.py               ← Router (the ONLY file users/nav call)
-         │
-         │  argument: method:=dimg or method:=pc2scan
-         │
-         ├── include/depth_to_scan_dimg.launch.py      (depthimage_to_laserscan)
-         └── include/depth_to_scan_pc2scan.launch.py   (pointcloud_to_laserscan)
-```
-
-### Why This Matters for `vf_robot_navigation`
-
-The navigation package only needs to know **one launch file name** per function:
-
-| Navigation calls | From this package |
-|------------------|-------------------|
-| RTAB-Map SLAM | `rtabmap_slam.launch.py` |
-| RTAB-Map Localization | `rtabmap_loc.launch.py` |
-| Depth → LaserScan | `depth_to_scan.launch.py` |
-
-It never needs to know about `include/` files or which method is being used internally.
-
----
-
-## 📷 Camera Configuration
-
-| Camera | Position (m) | Orientation | Height | Best Use |
-|--------|-------------|-------------|--------|----------|
-| D435i | (0.045, 0, 1.773) | 60° downward, faces front | 1.773 m | RTAB-Map SLAM (rich visual features) |
-| D455 | (-0.525, 0, 0.429) | Horizontal, faces rear | 0.429 m | Obstacle detection (`/scan`) |
-
-### Critical notes
-
-- **D435i floor issue:** Tilted 60° downward at 1.773 m — its depth-to-scan output primarily detects the floor, not obstacles. The `depthimage_to_laserscan` method clips floor returns with `range_min=1.1 m` (creating a blind zone). The `pointcloud_to_laserscan` method filters in world-space Z and has no blind zone.
-
-- **frame_id must be `base_footprint`:** Gazebo publishes odometry as `odom → base_footprint`. All RTAB-Map launch files use `frame_id: base_footprint`. Do **not** change to `base_link` — RTAB-Map will silently fail TF lookups and never publish `map → odom`.
-
-- **use_sim_time is mandatory for Gazebo:** Gazebo timestamps are ~1000 s while wall time is ~1.77 billion seconds. Without `use_sim_time:=true`, the message filter drops every RGBD frame silently and the `map` frame never appears.
-
----
-
-## 🔀 Two Depth-to-Scan Methods: dimg vs pc2scan
-
-Every depth-to-scan conversion goes through one router launch file with two methods:
+### Dual camera (recommended)
 
 ```bash
-# Gazebo (fast — recommended for simulation)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual
-
-# Real robot (accurate — recommended for production)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual
-```
-
-### `method:=dimg` — depthimage_to_laserscan
-
-```
-Depth IMAGE (2D) ──► collapse centre rows ──► LaserScan
-```
-
-- Processes cheap 2D depth image — runs at full 15–30 Hz even in Gazebo
-- Scan plane locked to camera optical axis direction
-- **D435i limitation:** Floor hits scan at ~1.024 m → `range_min=1.1 m` clips it, but obstacles < 1.1 m are invisible
-- **D455:** Works perfectly — horizontal at 0.429 m, scan at correct obstacle height
-- **Best for:** Gazebo simulation, D455-only setups
-
-### `method:=pc2scan` — pointcloud_to_laserscan
-
-```
-PointCloud2 (3D) ──► TF transform to base_footprint ──► Z height filter ──► LaserScan
-```
-
-- Transforms every 3D point into `base_footprint` frame (Z=0 = ground)
-- Filters by height: keeps Z ∈ [0.05 m, 10.0 m] — floor excluded regardless of camera tilt
-- **D435i:** No floor issue — world-space Z filter handles 60° tilt perfectly
-- **Performance:** Real hardware at 15–30 Hz. Gazebo only ~2–3 Hz (CPU bottleneck)
-- **Best for:** Real robot, D435i obstacle detection without blind zone
-
-### Comparison
-
-| Feature | `dimg` | `pc2scan` |
-|---------|--------|-----------|
-| Speed in Gazebo | 15–30 Hz ✅ | ~2–3 Hz ❌ |
-| Speed on real robot | 15–30 Hz ✅ | 15–30 Hz ✅ |
-| D435i floor handling | `range_min=1.1 m` hack (blind zone) | Height filter (no blind zone) ✅ |
-| D455 floor handling | No issue ✅ | No issue ✅ |
-| Dependencies | `depthimage_to_laserscan` | `pointcloud_to_laserscan` |
-
----
-
-## 🔗 Dual Camera Scan Merging
-
-In dual camera mode (`camera:=dual`), both cameras produce individual scans. These need to be combined into a single `/scan` topic for AMCL and SLAM Toolbox.
-
-```
-depth_to_scan.launch.py  camera:=dual
-│
-├── ALWAYS creates:
-│     /scan_d435i   (front arc, ~87°)
-│     /scan_d455    (rear arc, ~87°)
-│
-├── IF ira_laser_tools installed:
-│     merger combines both → /scan   (~174° coverage)
-│
-└── IF ira_laser_tools NOT installed:
-      relay copies /scan_d455 → /scan  (~87° rear only, zero CPU overhead)
-```
-
-**`/scan` always exists** regardless of whether `ira_laser_tools` is installed. AMCL, SLAM Toolbox, and Nav2 always have a scan topic to work with.
-
-### Why `topic_tools relay` instead of a duplicate node?
-
-Previous versions created a **second** `pointcloud_to_laserscan` node to re-process the same D455 point cloud. The relay node just forwards already-computed messages with near-zero CPU usage.
-
-### Installing ira_laser_tools (optional)
-
-```bash
-cd ~/cogni-nav-x0/src
-git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2
-cd ~/cogni-nav-x0
-colcon build --packages-select ira_laser_tools
-```
-
-**Alternative:** Skip the merger entirely and configure Nav2 costmaps with multiple observation sources (see Nav2 Costmap Configuration section).
-
----
-
-## 🚀 Launch Files
-
-### Top-Level Launches (what users and navigation call)
-
-| Launch File | Purpose | Modes |
-|-------------|---------|-------|
-| `rtabmap_slam.launch.py` | Build a new map with RTAB-Map visual SLAM | Mode 1 |
-| `rtabmap_loc.launch.py` | Localize in a previously built map | Mode 2 |
-| `depth_to_scan.launch.py` | Convert depth to LaserScan (router) | Modes 1–4 |
-
-### Include Launches (reusable building blocks — not called directly)
-
-| Launch File | Purpose | Used By |
-|-------------|---------|---------|
-| `include/rgbd_sync.launch.py` | Spawns `rtabmap_sync/rgbd_sync` nodes for selected camera | `rtabmap_slam`, `rtabmap_loc` |
-| `include/depth_to_scan_dimg.launch.py` | depthimage_to_laserscan nodes | `depth_to_scan` (method:=dimg) |
-| `include/depth_to_scan_pc2scan.launch.py` | pointcloud_to_laserscan nodes | `depth_to_scan` (method:=pc2scan) |
-
-### `rtabmap_slam.launch.py`
-
-Builds a new map. Publishes `map → odom` TF and `/map` topic.
-
-```bash
-# New map with both cameras (default)
+# New map — deletes any existing my_office.db and starts fresh
 ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
 
-# Single camera
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d455 map_name:=my_office
-
-# Continue existing map
+# Continue an existing map — keeps existing my_office.db and adds to it
 ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office new_map:=false
 
-# Real robot
+# No RViz (headless / SSH)
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office rviz:=false
+
+# Real robot (not Gazebo)
 ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office use_sim_time:=false
 ```
 
-The launch file automatically:
-1. Creates `~/cogni-nav-x0/maps/my_office/`
-2. Starts RTAB-Map — `map → odom` TF appears after ~3–10 seconds
-3. Saves `my_office.db` on shutdown (Ctrl+C)
+### D435i only (front camera)
 
-Save 2D map for AMCL/Nav2 while SLAM is running:
+```bash
+# New map
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d435i map_name:=my_office
+
+# Continue existing
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d435i map_name:=my_office new_map:=false
+
+# Real robot
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d435i map_name:=my_office use_sim_time:=false
+```
+
+### D455 only (rear camera)
+
+```bash
+# New map
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d455 map_name:=my_office
+
+# Continue existing
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d455 map_name:=my_office new_map:=false
+
+# Real robot
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=d455 map_name:=my_office use_sim_time:=false
+```
+
+### Custom maps directory
+
+```bash
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=warehouse maps_dir:=~/my_maps
+# Saves to: ~/my_maps/warehouse/warehouse.db
+```
+
+### What SLAM produces
+
+| Output | Location | Created when |
+|--------|----------|-------------|
+| `my_office.db` | `~/cogni-nav-x0/maps/my_office/` | Automatically on Ctrl+C |
+| `my_office.pgm` | `~/cogni-nav-x0/maps/my_office/` | Manually (see Map Management) |
+| `my_office.yaml` | `~/cogni-nav-x0/maps/my_office/` | Manually (see Map Management) |
+| `/map` topic | ROS network | While SLAM is running |
+| `map→odom` TF | ROS network | While SLAM is running |
+
+---
+
+## 📍 Complete Command Reference — Localization
+
+RTAB-Map Localization navigates within a previously built map. **Requires a `.db` file** from a prior SLAM session.
+
+### Dual camera (recommended)
+
+```bash
+# Gazebo
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
+
+# No RViz
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office rviz:=false
+
+# Real robot
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office use_sim_time:=false
+```
+
+### D435i only
+
+```bash
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=d435i map_name:=my_office
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=d435i map_name:=my_office use_sim_time:=false
+```
+
+### D455 only
+
+```bash
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=d455 map_name:=my_office
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=d455 map_name:=my_office use_sim_time:=false
+```
+
+### Custom maps directory
+
+```bash
+ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=warehouse maps_dir:=~/my_maps
+# Loads from: ~/my_maps/warehouse/warehouse.db
+```
+
+### Error: map database not found
+
+If the `.db` file doesn't exist, the launch prints an error:
+
+```
+ERROR: Map database not found!
+Expected:  /home/pravin/cogni-nav-x0/maps/my_office/my_office.db
+
+Build the map first:
+  ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
+```
+
+---
+
+## 🔄 Complete Command Reference — Depth to LaserScan
+
+Converts depth camera data into `/scan` (LaserScan) for Nav2, AMCL, or SLAM Toolbox. Run this **alongside** SLAM or Localization.
+
+### Two methods available
+
+| Method | Best for | Speed in Gazebo | D435i floor handling |
+|--------|----------|----------------|---------------------|
+| `method:=dimg` | Gazebo simulation | 15–30 Hz ✅ | `range_min=1.1 m` hack (blind zone < 1.1 m) |
+| `method:=pc2scan` | Real robot | 15–30 Hz ✅ (real), ~2–3 Hz (Gazebo) | World-space height filter (no blind zone) ✅ |
+
+### method:=dimg — Dual camera
+
+```bash
+# Gazebo (recommended for simulation)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual
+
+# Dual without merging (Nav2 multi-source costmap instead)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual merge_scans:=false
+# Publishes /scan_d435i + /scan_d455 only — no /scan
+
+# Real robot
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual use_sim_time:=false
+```
+
+### method:=dimg — Single camera
+
+```bash
+# D455 only (rear, horizontal — best single-camera option for obstacles)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d455
+
+# D435i only (front, 60° tilt — has 1.1 m blind zone with dimg method)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d435i
+
+# Real robot
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d455 use_sim_time:=false
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d435i use_sim_time:=false
+```
+
+### method:=pc2scan — Dual camera
+
+```bash
+# Real robot (recommended for production)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual use_sim_time:=false
+
+# Gazebo (works but slow ~2–3 Hz)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual
+
+# Dual without merging
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual merge_scans:=false
+```
+
+### method:=pc2scan — Single camera
+
+```bash
+# D455 only
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=d455 use_sim_time:=false
+
+# D435i only (no blind zone — pc2scan handles 60° tilt correctly)
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=d435i use_sim_time:=false
+
+# Gazebo
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=d455
+ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=d435i
+```
+
+### What depth_to_scan produces
+
+| Camera setting | merge_scans | Topics published |
+|---------------|-------------|-----------------|
+| `camera:=d435i` | n/a | `/scan` |
+| `camera:=d455` | n/a | `/scan` |
+| `camera:=dual` | `true` (default) | `/scan_d435i` + `/scan_d455` + `/scan` (merged) |
+| `camera:=dual` | `false` | `/scan_d435i` + `/scan_d455` only |
+
+> **Note:** When `merge_scans:=false`, there is no `/scan` topic. AMCL requires `/scan`, so use `merge_scans:=true` or configure Nav2 with multi-source costmap (see Developer section).
+
+---
+
+## 💾 Map Management — Save, Export, Reuse
+
+### Map storage structure
+
+All maps are stored **outside** the ROS package at workspace level:
+
+```
+~/cogni-nav-x0/
+├── src/vf_robot_slam/              # Package source (no maps here)
+└── maps/                           # Auto-created by launch files
+    ├── my_office/
+    │   ├── my_office.db            # RTAB-Map database (auto-saved on Ctrl+C)
+    │   ├── my_office.pgm           # 2D occupancy grid (saved manually)
+    │   └── my_office.yaml          # Map metadata (saved manually)
+    └── warehouse/
+        ├── warehouse.db
+        ├── warehouse.pgm
+        └── warehouse.yaml
+```
+
+### Map file types
+
+| File | Size | Used By | Created How |
+|------|------|---------|-------------|
+| `.db` | 10–500+ MB | RTAB-Map localization (Mode 2) | **Automatic** — saved on Ctrl+C |
+| `.pgm` | ~100 KB | AMCL / Nav2 map_server (Mode 3) | **Manual** — see below |
+| `.yaml` | ~200 B | AMCL / Nav2 map_server (Mode 3) | **Manual** — saved with `.pgm` |
+
+### Step-by-step: Complete mapping workflow
+
+**Step 1 — Start Gazebo**
+```bash
+ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
+```
+
+**Step 2 — Start SLAM**
+```bash
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
+```
+
+**Step 3 — Verify SLAM is working** (wait ~10 seconds)
+```bash
+ros2 run tf2_ros tf2_echo map odom
+# Should show real translation values, not "Could not transform"
+```
+
+**Step 4 — Drive the robot** to explore
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+# Drive slowly, cover all areas, return to start for loop closure
+```
+
+**Step 5 — Save the 2D map** (while SLAM is still running)
 ```bash
 ros2 run nav2_map_server map_saver_cli -f ~/cogni-nav-x0/maps/my_office/my_office
 ```
+This creates `my_office.pgm` + `my_office.yaml`.
 
-### `rtabmap_loc.launch.py`
+**Step 6 — Stop SLAM** with Ctrl+C
+The `.db` file saves automatically.
 
-Localizes within an existing map. Requires `.db` file from a prior SLAM session.
-
+**Step 7 — Use the map**
 ```bash
+# Option A: RTAB-Map Localization (uses .db)
 ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
+
+# Option B: AMCL (uses .pgm/.yaml) — via vf_robot_navigation (future)
+ros2 launch vf_robot_navigation bringup_amcl.launch.py \
+    map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
 
-The launch file checks that the `.db` file exists and prints an error with instructions if missing.
+### Alternative: Export 2D map from .db after SLAM
 
-### `depth_to_scan.launch.py`
-
-Router — single entry point for all depth-to-scan conversion.
+If you forgot to run `map_saver_cli` while SLAM was running:
 
 ```bash
-# Gazebo (fast)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual
+rtabmap-databaseViewer ~/cogni-nav-x0/maps/my_office/my_office.db
+# Menu: File → Export 2D Grid Map → save as .pgm
+```
 
-# Real robot (accurate)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual
+### Continue mapping a previous session
 
-# Single camera
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d455
-
-# Dual without merging
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual merge_scans:=false
+```bash
+ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office new_map:=false
+# Loads existing my_office.db and adds new data to it
 ```
 
 ---
 
 ## 🗺️ Operating Modes (4 Modes)
 
-This package supports 4 mutually exclusive operating modes, designed for integration with `vf_robot_navigation`:
+This package supports 4 mutually exclusive operating modes for integration with `vf_robot_navigation`:
 
-| Mode | This package provides | `vf_robot_navigation` provides |
-|------|----------------------|-------------------------------|
-| **Mode 1:** RTAB-Map SLAM | `/map`, `map→odom` TF, `/scan` | Planners, controllers, costmaps |
-| **Mode 2:** RTAB-Map Loc | `/map`, `map→odom` TF, `/scan` | Planners, controllers, costmaps |
-| **Mode 3:** AMCL | `/scan` only | `map_server`, AMCL, planners |
-| **Mode 4:** SLAM Toolbox | `/scan` only | SLAM Toolbox, planners |
+| Mode | What to launch from `vf_robot_slam` | What `vf_robot_navigation` provides |
+|------|-------------------------------------|-------------------------------------|
+| **1. RTAB-Map SLAM** | `rtabmap_slam.launch.py` + `depth_to_scan.launch.py` | Planners, controllers, costmaps |
+| **2. RTAB-Map Loc** | `rtabmap_loc.launch.py` + `depth_to_scan.launch.py` | Planners, controllers, costmaps |
+| **3. AMCL** | `depth_to_scan.launch.py` only | `map_server`, AMCL, planners |
+| **4. SLAM Toolbox** | `depth_to_scan.launch.py` only | SLAM Toolbox, planners |
 
-**Key constraint:** Each mode has exactly ONE `/map` publisher and ONE `map→odom` TF publisher to prevent conflicts.
+**Key constraint:** Each mode has exactly ONE `/map` publisher and ONE `map→odom` TF publisher. Never run two modes simultaneously.
 
 ### Mode 1: RTAB-Map SLAM + Nav2
 
@@ -399,10 +451,10 @@ ros2 launch vf_robot_navigation bringup_rtabmap_loc.launch.py
 # Terminal 1: Gazebo
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: Depth to LaserScan only
+# Terminal 2: Depth to LaserScan only (no RTAB-Map needed)
 ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
 
-# Terminal 3: Nav2 with AMCL (future)
+# Terminal 3: Nav2 with AMCL (future — uses .pgm/.yaml map)
 ros2 launch vf_robot_navigation bringup_amcl.launch.py \
     map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
@@ -422,100 +474,425 @@ ros2 launch vf_robot_navigation bringup_slam_toolbox.launch.py
 
 ---
 
-## 📦 Map Storage & Workflow
+## ✅ Verification & Diagnostics
 
-### Storage structure
+### Is SLAM working?
 
-Maps are stored **outside** the ROS package at workspace level:
-
-```
-~/cogni-nav-x0/
-├── src/
-│   ├── vf_robot_slam/               # Package source (no maps here)
-│   └── vf_robot_navigation/
-│
-└── maps/                            # Auto-created by launch files
-    ├── my_office/
-    │   ├── my_office.db             # RTAB-Map database (auto-saved on Ctrl+C)
-    │   ├── my_office.pgm            # 2D occupancy grid (save manually)
-    │   └── my_office.yaml           # Map metadata for AMCL/Nav2 (save manually)
-    └── warehouse/
-        ├── warehouse.db
-        ├── warehouse.pgm
-        └── warehouse.yaml
-```
-
-### Map file reference
-
-| File | Format | Typical Size | Used By | Contains |
-|------|--------|-------------|---------|----------|
-| `*.db` | SQLite | 10–500+ MB | RTAB-Map localization | 3D map, RGB images, depth, visual features, pose graph |
-| `*.pgm` | Grayscale image | ~100 KB | AMCL, Nav2 `map_server` | 2D occupancy grid |
-| `*.yaml` | YAML | ~200 B | AMCL, Nav2 `map_server` | Resolution, origin, path to `.pgm` |
-
-### Complete SLAM workflow (step by step)
-
-**Step 1:** Start Gazebo
 ```bash
-ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
-```
-
-**Step 2:** Start RTAB-Map SLAM
-```bash
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
-```
-
-**Step 3:** Verify SLAM is initializing (~10 seconds)
-```bash
+# Map frame should appear within ~10 seconds
 ros2 run tf2_ros tf2_echo map odom
-# Should show real translation values, not all zeros
+
+# RTAB-Map processing stats (should NOT time out)
+ros2 topic echo /rtabmap/info --once
+
+# RGBD sync rate (expect 15–30 Hz)
+ros2 topic hz /rgbd_image/d455
+ros2 topic hz /rgbd_image/d435i
 ```
 
-**Step 4:** Drive the robot to build the map
+### Is depth_to_scan working?
+
 ```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard
-# Drive slowly, cover all areas, return to start for loop closure
+# Scan rate
+ros2 topic hz /scan
+ros2 topic hz /scan_d435i    # dual mode only
+ros2 topic hz /scan_d455     # dual mode only
 ```
 
-**Step 5A:** Save 2D map while SLAM is running
+### TF inspection
+
 ```bash
-ros2 run nav2_map_server map_saver_cli -f ~/cogni-nav-x0/maps/my_office/my_office
+# Full TF tree (saves PDF)
+ros2 run tf2_tools view_frames
+
+# Specific transforms
+ros2 run tf2_ros tf2_echo map odom
+ros2 run tf2_ros tf2_echo odom base_footprint
+ros2 run tf2_ros tf2_echo base_link camera_d455_link
 ```
 
-**Step 5B:** Stop SLAM — `.db` saves automatically on Ctrl+C
+### Topic inspection
 
-**Step 6:** Export 2D map from database (if you skipped Step 5A)
 ```bash
-rtabmap-databaseViewer ~/cogni-nav-x0/maps/my_office/my_office.db
-# File → Export 2D Grid Map → save as .pgm
+ros2 topic list | grep -E "scan|map|rtabmap|rgbd"
+ros2 topic echo /odom --once | grep child_frame_id    # must be: base_footprint
+ros2 topic echo /clock --once                          # Gazebo sim time
 ```
 
-**Step 7:** Use the map for navigation
+---
+
+## 🐛 Troubleshooting
+
+### `map` frame never appears / `tf2_echo map odom` times out
+
+This is the most common issue. Work through in order:
+
+**1. Verify `use_sim_time` is set.**
+Gazebo sim time is ~1000 s. Wall time is ~1.77 billion seconds. Mismatch = every RGBD frame silently dropped.
+
 ```bash
-# Option A: RTAB-Map Localization (uses .db)
-ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
-
-# Option B: AMCL (uses .pgm/.yaml)
-ros2 launch vf_robot_navigation bringup_amcl.launch.py \
-    map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
+ros2 topic echo /clock --once
+ros2 topic echo /rgbd_image/d455 --once | grep sec
+# Both sec values must be in the same range (~1000, not ~1.77 billion)
 ```
+
+Fix: ensure `use_sim_time:=true` in the launch command (default for all launch files).
+
+**2. Verify odometry frame ID.**
+RTAB-Map uses `frame_id: base_footprint`. Wrong frame = silent TF lookup failure.
+
+```bash
+ros2 topic echo /odom --once | grep child_frame_id
+# Must print: child_frame_id: base_footprint
+```
+
+**3. Verify RGBD sync rate.**
+
+```bash
+ros2 topic hz /rgbd_image/d455
+# Expected: 15–30 Hz. If ~6 Hz → approx_sync_max_interval was wrong (fixed in current version).
+```
+
+**4. Check for message filter warnings.**
+
+```bash
+ros2 topic echo /rosout 2>/dev/null | grep -i "dropping\|warn\|transform"
+```
+
+**5. Check RTAB-Map is receiving frames.**
+
+```bash
+ros2 topic echo /rtabmap/info --once
+# If this times out: zero frames processed → check topic remappings
+```
+
+---
+
+### LaserScan detecting floor (D435i)
+
+Expected with `method:=dimg`. The D435i at 1.773 m height + 60° tilt = scan plane hits floor at ~1.024 m.
+
+**Solutions:**
+- Use `method:=pc2scan` — world-space Z filter handles the tilt correctly, no blind zone
+- Use `camera:=d455` or `camera:=dual` for obstacle detection
+- With `method:=dimg`, `range_min=1.1 m` clips floor but creates a blind zone < 1.1 m
+
+---
+
+### RTAB-Map not detecting loop closures
+
+- Drive slowly — motion blur kills visual features
+- Ensure sufficient texture and lighting in the environment
+- Return to a previously visited area from a similar angle
+- Check `Vis/MinInliers` (currently 15) — lower for more permissive closure
+
+---
+
+### Scan is empty or at 0 Hz
+
+**With `method:=dimg` (dual mode):**
+The `depthimage_to_laserscan` node uses lazy subscription — it won't subscribe to depth input until something subscribes to its scan output. The launch file starts `scan_merger` BEFORE the converter nodes to handle this. If you're seeing zero Hz, verify `scan_merger` is running:
+
+```bash
+ros2 node list | grep scan_merger
+```
+
+**With `method:=pc2scan`:**
+The `pc_to_scan.py` node needs TF to be available. Check:
+
+```bash
+ros2 run tf2_ros tf2_echo base_footprint camera_d455_depth_optical_frame
+ros2 topic hz /d455/depth/d455_depth/points
+```
+
+---
+
+### TF errors for camera frames in RViz
+
+Camera frames are static transforms from `robot_state_publisher`. If missing:
+
+```bash
+ros2 topic echo /robot_description --once | head -5
+ros2 run tf2_tools view_frames
+```
+
+---
+
+# FOR DEVELOPERS
+
+---
+
+## 📁 Package Structure
+
+```
+vf_robot_slam/
+├── CMakeLists.txt
+├── package.xml
+├── README.md
+├── config/
+│   └── cameras/                          # Camera topic/frame reference (not loaded by launch)
+│       ├── d435i.yaml                    #   D435i: topics, frames, physical specs
+│       ├── d455.yaml                     #   D455: topics, frames, physical specs
+│       └── dual.yaml                     #   Both cameras combined
+├── launch/
+│   ├── rtabmap_slam.launch.py            # Mode 1: RTAB-Map SLAM (top-level)
+│   ├── rtabmap_loc.launch.py             # Mode 2: RTAB-Map Localization (top-level)
+│   ├── depth_to_scan.launch.py           # Router → picks dimg or pc2scan (top-level)
+│   └── include/                          # Reusable building blocks (NOT launched directly)
+│       ├── rgbd_sync.launch.py           #   RGBD sync nodes (shared by slam + loc)
+│       ├── depth_to_scan_dimg.launch.py  #   depthimage_to_laserscan method
+│       └── depth_to_scan_pc2scan.launch.py # pc_to_scan.py method
+├── rviz/
+│   ├── rtabmap_slam.rviz                 # RViz config for SLAM mode
+│   └── rtabmap_loc.rviz                  # RViz config for Localization mode
+└── scripts/
+    ├── scan_merger.py                    # Custom LaserScan merger (replaces ira_laser_tools)
+    └── pc_to_scan.py                     # Custom PointCloud2→LaserScan (replaces pointcloud_to_laserscan)
+
+# Maps stored OUTSIDE the package:
+~/cogni-nav-x0/maps/                      # Auto-created by launch files
+```
+
+### Why no YAML config files for RTAB-Map parameters?
+
+All RTAB-Map parameters are defined **inline** in the launch files (`_get_rtabmap_slam_params()` and `_get_rtabmap_loc_params()`) with comments explaining *why* each value is set. This is intentional:
+
+- ROS 2 YAML loading requires the exact node name as the top-level key — node names change depending on camera mode, so no single YAML works
+- Inline parameters with comments serve as both config AND documentation
+- No risk of YAML files drifting out of sync with actual launch behavior
+
+### Why camera YAML files exist but aren't loaded by launch files?
+
+The `config/cameras/` YAML files are **reference documentation** — verified topic names, frame IDs, and physical specs for each camera. They are not loaded by any launch file. Instead, topic names and frames are hardcoded in launch files where the context makes the purpose clear.
+
+---
+
+## 🏗️ Architecture — Modular Launch Design
+
+### The include/ pattern
+
+Launch files use `include/` to eliminate code duplication:
+
+```
+include/rgbd_sync.launch.py          ← Defines RGBD sync nodes ONCE
+         │
+         ├── rtabmap_slam.launch.py   Includes rgbd_sync + adds RTAB-Map SLAM node
+         └── rtabmap_loc.launch.py    Includes rgbd_sync + adds RTAB-Map LOC node
+```
+
+```
+depth_to_scan.launch.py               ← Router (the ONLY file users call)
+         │
+         │  argument: method:=dimg or method:=pc2scan
+         │
+         ├── include/depth_to_scan_dimg.launch.py      (depthimage_to_laserscan)
+         └── include/depth_to_scan_pc2scan.launch.py   (pc_to_scan.py custom node)
+```
+
+### Why this matters for `vf_robot_navigation`
+
+The navigation package only needs to know **three launch file names**:
+
+| Navigation calls | From `vf_robot_slam` |
+|------------------|---------------------|
+| RTAB-Map SLAM | `rtabmap_slam.launch.py` |
+| RTAB-Map Localization | `rtabmap_loc.launch.py` |
+| Depth → LaserScan | `depth_to_scan.launch.py` |
+
+It never needs to know about `include/` files, which method is used, or which custom nodes run internally.
+
+### File-by-file summary
+
+| File | Role | Key details |
+|------|------|-------------|
+| `rtabmap_slam.launch.py` | SLAM mode | Includes `rgbd_sync.launch.py` for dual; inline params via `_get_rtabmap_slam_params()`; creates map folder; `delete_db_on_start` controlled by `new_map` arg |
+| `rtabmap_loc.launch.py` | Localization mode | Includes `rgbd_sync.launch.py` for dual; inline params via `_get_rtabmap_loc_params()`; guards against missing `.db` file |
+| `depth_to_scan.launch.py` | Router | Pure routing — includes one of the two `include/` files based on `method` arg |
+| `include/rgbd_sync.launch.py` | RGBD sync | `rtabmap_sync/rgbd_sync` nodes with correct remappings; `approx_sync_max_interval: 0.05` (0.0 defeats sync) |
+| `include/depth_to_scan_dimg.launch.py` | dimg method | `depthimage_to_laserscan` nodes; startup order: merger FIRST, then converters (lazy subscription fix) |
+| `include/depth_to_scan_pc2scan.launch.py` | pc2scan method | Custom `pc_to_scan.py` nodes; no startup order dependency (no lazy subscription) |
+| `scripts/scan_merger.py` | Scan merger | Custom node replacing `ira_laser_tools`; merges `/scan_d435i` + `/scan_d455` → `/scan` |
+| `scripts/pc_to_scan.py` | PC2 → scan | Custom node replacing `pointcloud_to_laserscan`; world-space Z height filter via TF2 |
+
+---
+
+## 📷 Camera Configuration — D435i vs D455
+
+| Property | D435i (front) | D455 (rear) |
+|----------|--------------|-------------|
+| Position (m) | (0.045, 0, 1.773) | (−0.525, 0, 0.429) |
+| Height | 1.773 m | 0.429 m |
+| Tilt | 60° downward | Horizontal (0°) |
+| Orientation | Faces front | Faces rear (180°) |
+| Depth range | 0.6–6.0 m | 0.6–6.0 m |
+| Horizontal FOV | 87° | 87° |
+| Link frame | `camera_d435i_link` | `camera_d455_link` |
+| Color optical frame | `camera_d435i_color_optical_frame` | `camera_d455_color_optical_frame` |
+| Depth optical frame | `camera_d435i_depth_optical_frame` | `camera_d455_depth_optical_frame` |
+| RGB topic | `/d435i/rgb/d435i_rgb/image_raw` | `/d455/rgb/d455_rgb/image_raw` |
+| Depth topic | `/d435i/depth/d435i_depth/depth/image_raw` | `/d455/depth/d455_depth/depth/image_raw` |
+| PointCloud2 topic | `/d435i/depth/d435i_depth/points` | `/d455/depth/d455_depth/points` |
+| Camera info topic | `/d435i/depth/d435i_depth/depth/camera_info` | `/d455/depth/d455_depth/depth/camera_info` |
+| IMU topic | `/d435i/imu/d435i_imu_controller/out` | `/d455/imu/d455_imu_controller/out` |
+| RGBD sync output | `/rgbd_image/d435i` | `/rgbd_image/d455` |
+
+### D435i floor issue explained
+
+The D435i is at 1.773 m, tilted 60° down. With `depthimage_to_laserscan` (method:=dimg), the scan plane is locked to the camera's optical axis. Even the topmost image row is 31° below horizontal, so the scan always sees the floor.
+
+**Floor intersection distance:** `1.773 / tan(60°) ≈ 1.024 m`
+
+With `method:=dimg`, `range_min` is set to 1.1 m to clip floor returns. This creates a blind zone: obstacles closer than 1.1 m are invisible.
+
+With `method:=pc2scan`, the custom `pc_to_scan.py` node transforms all points into `base_footprint` frame and filters by world-space Z height (0.02–2.0 m). The camera tilt is irrelevant — floor is excluded cleanly and `range_min` can be 0.1 m.
+
+---
+
+## 🔀 Two Depth-to-Scan Methods — dimg vs pc2scan
+
+### method:=dimg — depthimage_to_laserscan
+
+```
+Depth IMAGE (2D) ──► collapse centre row ──► LaserScan
+```
+
+- Uses the standard `ros-humble-depthimage-to-laserscan` package
+- Processes cheap 2D depth image — runs at 15–30 Hz even in Gazebo
+- Scan plane locked to camera optical axis (problem for tilted cameras)
+- D435i: `range_min=1.1 m`, `output_frame=base_footprint`
+- D455: `range_min=0.6 m`, `output_frame=camera_d455_link`
+
+**Startup order in dual mode:** `scan_merger` starts FIRST, then converter nodes. This is required because `depthimage_to_laserscan` uses lazy subscription — it won't subscribe to depth input until something subscribes to its scan output. If the merger isn't listening when converters start, they go idle.
+
+### method:=pc2scan — pc_to_scan.py (custom)
+
+```
+PointCloud2 (3D) ──► TF transform to base_footprint ──► Z height filter ──► polar binning ──► LaserScan
+```
+
+- Uses custom `scripts/pc_to_scan.py` (NOT the `ros-humble-pointcloud-to-laserscan` package)
+- Transforms full 3D pointcloud into `base_footprint` using TF2
+- Filters by world-space Z: keeps points at 0.02–2.0 m (floor and ceiling excluded)
+- `range_min=0.1 m` for both cameras — no blind zone
+- **No startup order dependency** — uses normal rclpy subscriptions (no lazy pattern)
+
+### Why pc_to_scan.py replaced pointcloud_to_laserscan
+
+The standard `ros-humble-pointcloud-to-laserscan` node uses `message_filters::Subscriber` with a lazy subscription thread. In ROS 2 Humble + CycloneDDS, subscriptions created by the background thread after `spin()` starts are never processed by the executor. The node appears subscribed (`ros2 node info` confirms it), receives data at the DDS layer, but `cloudCallback` never fires.
+
+The custom `pc_to_scan.py` uses normal `rclpy` subscriptions — no `message_filters`, no lazy subscription, deterministic behavior.
+
+### Comparison matrix
+
+| Feature | `dimg` | `pc2scan` |
+|---------|--------|-----------|
+| Underlying tool | `depthimage_to_laserscan` (apt package) | `pc_to_scan.py` (custom script) |
+| Input data | 2D depth image | 3D PointCloud2 |
+| Speed in Gazebo | 15–30 Hz ✅ | ~2–3 Hz (CPU-bound) |
+| Speed on real robot | 15–30 Hz ✅ | 15–30 Hz ✅ |
+| D435i floor handling | `range_min=1.1 m` (blind zone) | Height filter Z=[0.02, 2.0] m ✅ |
+| D455 floor handling | No issue ✅ | No issue ✅ |
+| Startup order matters? | Yes (merger before converters) | No |
+| External dependency | `ros-humble-depthimage-to-laserscan` | None (pure Python + numpy) |
+
+---
+
+## 🔧 Custom Nodes — scan_merger.py & pc_to_scan.py
+
+### scan_merger.py
+
+**Purpose:** Merges `/scan_d435i` + `/scan_d455` into a single `/scan` topic. Replaces `ira_laser_tools` with zero external dependencies.
+
+**How it works:**
+1. Subscribes to two LaserScan topics
+2. If input scans share the output frame AND scan geometry → fast path: per-bin `numpy.minimum()` (< 0.1 ms)
+3. If frames differ → cross-frame path: TF2 transform + vectorized numpy projection (< 1 ms)
+4. Publishes merged LaserScan at 30 Hz on timer
+
+**Key design decisions:**
+- No staleness check on input scans — Gazebo sim time jitter caused scans to be falsely rejected, dropping output to ~2 Hz
+- TF lookups are cached after first query (camera frames are static URDF transforms)
+- Uses newest input timestamp for the output header
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `scan_topics` | `"/scan_d435i /scan_d455"` | Space-separated input topics |
+| `output_topic` | `"/scan"` | Merged output topic |
+| `output_frame` | `"base_footprint"` | frame_id for merged scan |
+| `angle_min` | `-π` | Minimum angle (radians) |
+| `angle_max` | `+π` | Maximum angle (radians) |
+| `angle_increment` | `0.00581` (~0.33°) | Angular resolution |
+| `range_min` | `0.1` | Minimum range (m) |
+| `range_max` | `6.0` | Maximum range (m) |
+
+### pc_to_scan.py
+
+**Purpose:** Converts PointCloud2 to LaserScan with world-space height filtering. Replaces `ros-humble-pointcloud-to-laserscan`.
+
+**How it works:**
+1. Subscribes to PointCloud2 (RELIABLE QoS, matching Gazebo and RealSense)
+2. Looks up TF from pointcloud frame → `base_footprint` (cached after first lookup)
+3. Transforms all points using full 3×3 rotation + translation
+4. Filters by world-space Z height (removes floor and ceiling)
+5. Projects to 2D polar coordinates (range + angle)
+6. Bins into angular slots, keeps closest range per bin
+7. Publishes LaserScan in `base_footprint` frame
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `target_frame` | `"base_footprint"` | Output frame |
+| `min_height` | `0.02` | Min world Z to keep (m) |
+| `max_height` | `2.0` | Max world Z to keep (m) |
+| `angle_min` | `-π` | Scan start angle (radians) |
+| `angle_max` | `+π` | Scan end angle (radians) |
+| `angle_increment` | `0.00581` (~0.33°) | Angular resolution |
+| `range_min` | `0.1` | Min 2D range (m) |
+| `range_max` | `6.0` | Max 2D range (m) |
+| `transform_tolerance` | `0.1` | Max TF wait time (s) |
+
+---
+
+## 🔗 Dual Camera Scan Merging
+
+In dual camera mode (`camera:=dual`), both cameras produce individual scans that are merged into a single `/scan` topic:
+
+```
+depth_to_scan.launch.py  camera:=dual  merge_scans:=true
+│
+├── /scan_d435i   (front arc, ~87°)  ─┐
+│                                      ├── scan_merger.py ──► /scan (~174° merged)
+└── /scan_d455    (rear arc, ~87°)   ─┘
+```
+
+With `merge_scans:=false`:
+```
+├── /scan_d435i   (front arc, ~87°)
+└── /scan_d455    (rear arc, ~87°)
+    (no /scan topic — use Nav2 multi-source costmap)
+```
+
+**`/scan` always exists** when `merge_scans:=true` (default). AMCL, SLAM Toolbox, and Nav2 always have a scan topic to work with.
 
 ---
 
 ## ⚙️ Launch Arguments Reference
 
-### `rtabmap_slam.launch.py`
+### rtabmap_slam.launch.py
 
 | Argument | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `camera` | `d435i`, `d455`, `dual` | `dual` | Camera configuration |
 | `map_name` | any string | `default_map` | Name for the map folder and `.db` file |
 | `maps_dir` | path | `~/cogni-nav-x0/maps` | Base directory for all maps |
-| `new_map` | `true`, `false` | `true` | Delete existing `.db` (true) or continue it (false) |
+| `new_map` | `true`, `false` | `true` | Delete existing `.db` (true) or continue (false) |
 | `rviz` | `true`, `false` | `true` | Launch RViz |
-| `use_sim_time` | `true`, `false` | `true` | Gazebo sim time (true) or wall time (false) |
+| `use_sim_time` | `true`, `false` | `true` | Gazebo (true) or real robot (false) |
 
-### `rtabmap_loc.launch.py`
+### rtabmap_loc.launch.py
 
 | Argument | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -523,16 +900,16 @@ ros2 launch vf_robot_navigation bringup_amcl.launch.py \
 | `map_name` | any string | *(required)* | Name of the map to load |
 | `maps_dir` | path | `~/cogni-nav-x0/maps` | Base directory for maps |
 | `rviz` | `true`, `false` | `true` | Launch RViz |
-| `use_sim_time` | `true`, `false` | `true` | Gazebo sim time (true) or wall time (false) |
+| `use_sim_time` | `true`, `false` | `true` | Gazebo (true) or real robot (false) |
 
-### `depth_to_scan.launch.py`
+### depth_to_scan.launch.py
 
 | Argument | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `method` | `dimg`, `pc2scan` | `dimg` | Conversion method (see comparison above) |
+| `method` | `dimg`, `pc2scan` | `dimg` | Conversion method |
 | `camera` | `d435i`, `d455`, `dual` | `dual` | Camera configuration |
 | `merge_scans` | `true`, `false` | `true` | Merge dual scans into `/scan` |
-| `use_sim_time` | `true`, `false` | `true` | Gazebo sim time (true) or wall time (false) |
+| `use_sim_time` | `true`, `false` | `true` | Gazebo (true) or real robot (false) |
 
 ---
 
@@ -545,49 +922,57 @@ ros2 launch vf_robot_navigation bringup_amcl.launch.py \
 | `/map` | `nav_msgs/OccupancyGrid` | 2D occupancy grid |
 | `/rtabmap/cloud_map` | `sensor_msgs/PointCloud2` | 3D point cloud map |
 | `/rtabmap/mapPath` | `nav_msgs/Path` | Robot trajectory |
-| `/rtabmap/info` | `rtabmap_msgs/Info` | Per-frame stats (loop closures, landmarks) |
+| `/rtabmap/info` | `rtabmap_msgs/Info` | Per-frame stats |
+
+### RGBD Sync (dual mode)
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/rgbd_image/d435i` | `rtabmap_msgs/RGBDImage` | Synced RGB+D from D435i |
+| `/rgbd_image/d455` | `rtabmap_msgs/RGBDImage` | Synced RGB+D from D455 |
 
 ### Depth to LaserScan
 
 | Topic | Type | Published when |
 |-------|------|----------------|
-| `/scan` | `sensor_msgs/LaserScan` | Single camera, or dual with merging/relay |
+| `/scan` | `sensor_msgs/LaserScan` | Single camera, or dual with `merge_scans:=true` |
 | `/scan_d435i` | `sensor_msgs/LaserScan` | Dual mode only |
 | `/scan_d455` | `sensor_msgs/LaserScan` | Dual mode only |
 
-### TF transforms
+### TF chain
+
+```
+[RTAB-Map slam/loc]     [Gazebo / robot_localization]     [robot_state_publisher]
+         │                          │                              │
+         ▼                          ▼                              ▼
+       map ───────────► odom ───────────► base_footprint ──► base_link
+                                                                ├── camera_d435i_link
+                                                                │     ├── color_optical_frame
+                                                                │     ├── depth_optical_frame
+                                                                │     └── imu_frame
+                                                                ├── camera_d455_link
+                                                                │     ├── color_optical_frame
+                                                                │     ├── depth_optical_frame
+                                                                │     └── imu_frame
+                                                                ├── camera_fisheye_{front,left,rear,right}_link
+                                                                │     └── *_optical_frame
+                                                                ├── ultrasonic_{front_left,front_right,rear,side_left,side_right}_link
+                                                                ├── uvc_lights_link
+                                                                └── wheel_{front,rear}_{left,right}_link
+```
 
 | Transform | Publisher | Active in |
 |-----------|-----------|-----------|
-| `map → odom` | RTAB-Map | Modes 1 and 2 |
+| `map → odom` | RTAB-Map | Modes 1 and 2 only |
 | `odom → base_footprint` | Gazebo / robot_localization | Always |
 | `base_footprint → base_link` | `robot_state_publisher` | Always (static) |
-
-### TF chain (full)
-
-```
-[slam/amcl]          [gazebo]                [robot_state_publisher]
-     │                   │                            │
-     ▼                   ▼                            ▼
-   map ──────────► odom ──────────► base_footprint ──► base_link
-                                                         ├── camera_d435i_link
-                                                         │     ├── color_optical_frame
-                                                         │     ├── depth_optical_frame
-                                                         │     └── imu_frame
-                                                         ├── camera_d455_link
-                                                         │     ├── color_optical_frame
-                                                         │     ├── depth_optical_frame
-                                                         │     └── imu_frame
-                                                         ├── camera_fisheye_*_link
-                                                         ├── ultrasonic_*_link
-                                                         └── wheel_*_link
-```
+| `base_link → camera_*` | `robot_state_publisher` | Always (static) |
 
 ---
 
 ## 🔧 Nav2 Costmap Configuration
 
-For dual camera mode without `ira_laser_tools`, configure Nav2 to consume both scan topics as separate observation sources. This avoids the merger entirely for costmaps (AMCL still requires a single `/scan`):
+For dual camera mode with `merge_scans:=false`, configure Nav2 to consume both scan topics as separate observation sources:
 
 ```yaml
 # In nav2_params.yaml
@@ -616,221 +1001,56 @@ local_costmap:
           min_obstacle_height: 0.0
 ```
 
----
-
-## 📖 All Commands Reference
-
-### Build
-
-```bash
-cd ~/cogni-nav-x0
-colcon build --packages-select vf_robot_slam --symlink-install
-source install/setup.bash
-```
-
-### SLAM
-
-```bash
-# New map (Gazebo)
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
-
-# Continue existing map
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office new_map:=false
-
-# Real robot
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office use_sim_time:=false
-
-# Save 2D map while running
-ros2 run nav2_map_server map_saver_cli -f ~/cogni-nav-x0/maps/my_office/my_office
-```
-
-### Localization
-
-```bash
-ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
-ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=d455 map_name:=my_office
-```
-
-### Depth to LaserScan
-
-```bash
-# Gazebo (depthimage method — fast)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=dual
-
-# Real robot (pointcloud method — accurate)
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=pc2scan camera:=dual
-
-# Single camera
-ros2 launch vf_robot_slam depth_to_scan.launch.py method:=dimg camera:=d455
-
-# Dual without merging
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual merge_scans:=false
-```
-
-### Verify SLAM is working
-
-```bash
-# Map frame should appear within ~10 seconds
-ros2 run tf2_ros tf2_echo map odom
-
-# RTAB-Map processing stats
-ros2 topic echo /rtabmap/info --once
-
-# RGBD sync rate (expect 15–30 Hz, not ~6 Hz)
-ros2 topic hz /rgbd_image/d455
-ros2 topic hz /rgbd_image/d435i
-
-# Scan topics
-ros2 topic hz /scan
-ros2 topic hz /scan_d435i
-ros2 topic hz /scan_d455
-```
-
-### TF inspection
-
-```bash
-ros2 run tf2_tools view_frames
-ros2 run tf2_ros tf2_echo map odom
-ros2 run tf2_ros tf2_echo base_link camera_d455_link
-```
-
-### Topic inspection
-
-```bash
-ros2 topic list | grep -E "scan|map|rtabmap|rgbd"
-ros2 topic echo /odom --once | grep child_frame_id
-ros2 topic echo /clock --once
-```
+This approach lets Nav2 handle multi-sensor fusion natively, avoiding the scan merger entirely for costmap purposes. AMCL still requires a single `/scan` topic, so use `merge_scans:=true` for Mode 3.
 
 ---
 
-## 🐛 Troubleshooting
+## 📝 Hard-Won Lessons
 
-### `map` frame never appears / `tf2_echo map odom` times out
+These are bugs we discovered and fixed during development. Documented here to prevent regression.
 
-This is the most common issue. Work through in order:
+**1. `use_sim_time` MUST be true for Gazebo.**
+Gazebo publishes sim timestamps ~1000 s. Wall time is ~1.77 billion seconds. Without `use_sim_time:=true`, RTAB-Map's message filter silently drops every RGBD frame. The `map` frame never appears and there are zero error messages.
 
-**1. Verify sim time is consistent.**
-Gazebo sim time is ~1000 s. Wall time is ~1.77 billion seconds. Any mismatch causes every RGBD frame to be silently dropped.
+**2. `frame_id` MUST be `base_footprint`, not `base_link`.**
+Gazebo publishes odometry as `odom → base_footprint`. If RTAB-Map uses `frame_id: base_link`, TF lookups for `odom → base_link` fail silently — RTAB-Map never publishes `map → odom`.
 
-```bash
-ros2 topic echo /clock --once
-ros2 topic echo /rgbd_image/d455 --once | grep sec
-# Both sec values must be in the same range
-```
+**3. `depth/camera_info` MUST be remapped in rgbd_sync.**
+Without remapping `depth/camera_info`, the `rgbd_sync` node produces `RGBDImage` messages with empty `frame_id` fields. RTAB-Map then fails TF lookups silently.
 
-Fix: ensure `use_sim_time:=true` in the launch command.
+**4. `approx_sync_max_interval: 0.05`, never `0.0`.**
+Setting `0.0` defeats approximate sync on some `rtabmap_sync` versions. Result: RGBD sync drops from 15–30 Hz to ~6 Hz.
 
-**2. Verify odometry frame ID.**
-RTAB-Map uses `frame_id: base_footprint`. If odometry publishes a different `child_frame_id`, RTAB-Map silently fails.
+**5. `depthimage_to_laserscan` lazy subscription startup order.**
+In dual mode with `method:=dimg`, the `scan_merger` must start BEFORE the converter nodes. `depthimage_to_laserscan` uses lazy subscription — it won't subscribe to depth input until something subscribes to its scan output. If converters start first with zero subscribers, they go idle permanently.
 
-```bash
-ros2 topic echo /odom --once | grep child_frame_id
-# Must print: child_frame_id: base_footprint
-```
+**6. `pointcloud_to_laserscan` broken in Humble + CycloneDDS.**
+The standard package uses `message_filters::Subscriber` with a background thread for lazy subscription. In CycloneDDS, subscriptions created by the background thread after `spin()` starts are never processed. Replaced with custom `pc_to_scan.py`.
 
-**3. Verify RGBD sync rate.**
+**7. `scan_merger` staleness check breaks with Gazebo sim time.**
+The original merger rejected scans older than 0.5 s. With Gazebo, clock propagation jitter between nodes causes timestamps to drift enough to trigger false rejections, dropping output to ~2 Hz. Fix: no staleness check — always use latest available scan.
 
-```bash
-ros2 topic hz /rgbd_image/d455
-# Expected: 15–30 Hz. If ~6 Hz: approx_sync_max_interval issue.
-```
-
-**4. Check for message filter drops.**
-
-```bash
-ros2 topic echo /rosout 2>/dev/null | grep -i "dropping\|warn\|transform"
-```
-
-**5. Check RTAB-Map processing stats.**
-
-```bash
-ros2 topic echo /rtabmap/info --once
-# If this times out: zero frames processed. Check topic remappings.
-```
-
----
-
-### Laser scan detecting floor (D435i)
-
-Expected with `method:=dimg`. The D435i at 60° tilt produces a scan plane that intersects the floor at ~1.024 m. Solutions:
-
-- Use `camera:=d455` or `camera:=dual` for obstacle detection
-- Use `method:=pc2scan` which filters in world-space Z (no floor issue)
-- With `method:=dimg`, `range_min=1.1 m` clips floor but creates a blind zone
-
----
-
-### RTAB-Map not detecting loop closures
-
-- Ensure sufficient texture and lighting
-- Move slowly to avoid motion blur
-- Return to a previously visited area
-- Check `Vis/MinInliers` (currently 15) — lower for more permissive closure
-
----
-
-### RGBD sync producing ~6 Hz instead of 15–30 Hz
-
-Caused by `approx_sync_max_interval: 0.0` which defeats approximate sync. The launch files use `0.05` (50 ms tolerance). If you're loading parameters from external YAML files, check for overrides.
-
----
-
-### `ira_laser_tools` not found warning
-
-```
-depth_to_scan: dual — ira_laser_tools NOT found
-Fallback: /scan_d455 relayed to /scan (rear arc)
-```
-
-Not an error — the fallback works. Install `ira_laser_tools` from source for merged coverage, or use Nav2 multi-source costmap configuration with `merge_scans:=false`.
-
----
-
-### Scan is empty with `method:=pc2scan`
-
-The node performs a TF lookup at each cloud's timestamp. If TF is stale, the cloud is silently dropped. `transform_tolerance` is set to 0.5 s by default. If still empty:
-
-```bash
-# Check TF is being published
-ros2 run tf2_ros tf2_echo base_footprint camera_d455_depth_optical_frame
-
-# Check point cloud is arriving
-ros2 topic hz /d455/depth/d455_depth/points
-```
-
----
-
-### TF errors for camera frames in RViz
-
-Camera frames are static transforms published by `robot_state_publisher`. If missing, RSP is not running or the URDF is not loaded:
-
-```bash
-ros2 topic echo /robot_description --once | head -5
-ros2 run tf2_tools view_frames
-```
+**8. D455 `output_frame` must be `camera_d455_link`, not `base_footprint` (dimg method).**
+`depthimage_to_laserscan` does NOT rotate angle values — it only stamps the `header.frame_id`. Using `base_footprint` as output_frame makes the scan appear to face forward when the camera faces rear. The `scan_merger` handles the cross-frame transformation.
 
 ---
 
 ## 📄 Dependencies
 
-### Required
+### Required (apt)
 
 ```bash
 sudo apt install ros-humble-rtabmap-ros \
                  ros-humble-depthimage-to-laserscan \
-                 ros-humble-pointcloud-to-laserscan \
                  ros-humble-topic-tools
 ```
 
-### Optional (for dual camera scan merging)
+### Python (included in package)
 
-```bash
-cd ~/cogni-nav-x0/src
-git clone https://github.com/iralabdisco/ira_laser_tools.git -b ros2
-cd ~/cogni-nav-x0
-colcon build --packages-select ira_laser_tools
-```
+- `scripts/scan_merger.py` — custom LaserScan merger (replaces `ira_laser_tools`)
+- `scripts/pc_to_scan.py` — custom PointCloud2→LaserScan converter (replaces `pointcloud_to_laserscan`)
+
+Both use only `rclpy`, `numpy`, `sensor_msgs`, and `tf2_ros` — no additional pip packages needed.
 
 ### Optional (for improved multi-camera SLAM)
 
