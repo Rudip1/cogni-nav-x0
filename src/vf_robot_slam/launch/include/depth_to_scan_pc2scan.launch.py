@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Depth → LaserScan using pointcloud_to_laserscan — ViroFighter UVC-1
-════════════════════════════════════════════════════════════════════════
+Depth → LaserScan using pc_to_scan.py — ViroFighter UVC-1
+═════════════════════════════════════════════════════════════
 
 This file is included by depth_to_scan.launch.py (method:=pc2scan).
 Do NOT launch directly — use:
@@ -15,8 +15,8 @@ WHEN TO USE
     • This is the correct method for production use
 
   Simulation (Gazebo):
-    • Gazebo generates PointCloud2 in software → CPU bottleneck → ~2–3 Hz
-    • Use method:=dimg for simulation instead
+    • Works correctly but may be slower than method:=dimg due to PointCloud2
+      processing overhead. Use method:=dimg if frame rate is a concern.
 
 WHY THIS BEATS depthimage_to_laserscan FOR D435i
 ─────────────────────────────────────────────────
@@ -24,19 +24,21 @@ WHY THIS BEATS depthimage_to_laserscan FOR D435i
   optical axis. D435i at 60° tilt: even top image row is 31° below horizontal.
   Floor always appears as obstacles. No fix exists within that node.
 
-  pointcloud_to_laserscan filters in WORLD Z — tilt is irrelevant.
-  Floor excluded cleanly. range_min can be 0.1 m (no range hack needed).
+  pc_to_scan.py transforms the full 3D pointcloud into base_footprint using
+  TF2, then filters in WORLD Z — camera tilt is irrelevant. Floor excluded
+  cleanly. range_min can be 0.1 m (no range hack needed).
 
-STARTUP ORDER (BUG FIX — 2026-04-05)
-─────────────────────────────────────
-  pointcloud_to_laserscan uses LAZY SUBSCRIPTION — it will NOT subscribe
-  to its pointcloud input until at least one node subscribes to its /scan
-  output. If scan_merger starts AFTER the converters, the converters see
-  zero subscribers and go idle. The second launch "fixes" it because the
-  new scan_merger triggers the lazy check.
+IMPLEMENTATION NOTE (2026-04-06)
+────────────────────────────────
+  This file previously used the ros-humble-pointcloud-to-laserscan package.
+  That node uses message_filters::Subscriber with a lazy subscription thread.
+  In ROS 2 Humble + CycloneDDS, subscriptions created by the background
+  thread after spin() starts are never processed by the executor — the node
+  appears subscribed but cloudCallback never fires.
 
-  FIX: In dual mode, scan_merger MUST start BEFORE the converter nodes
-  so that when they check for subscribers, the merger is already listening.
+  Replaced with vf_robot_slam/pc_to_scan.py — a custom node using normal
+  rclpy subscriptions with TF2 transform + numpy vectorized processing.
+  No message_filters, no lazy subscription, deterministic behavior.
 """
 
 from launch import LaunchDescription
@@ -45,26 +47,25 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-# ── Scan parameters — same for both cameras (world-space Z filter) ───────────
+# ── Shared scan parameters — world-space Z filter, same for both cameras ─────
 SCAN_PARAMS = {
     "target_frame": "base_footprint",
-    "min_height": 0.02,  # 2 cm — floor excluded, small obstacles included
-    "max_height": 10.0,
+    "min_height": 0.02,  # 2 cm above ground — floor excluded
+    "max_height": 2.0,  # 2 m — ceiling excluded
     "angle_min": -3.14159,
     "angle_max": 3.14159,
-    "angle_increment": 0.00581,
+    "angle_increment": 0.00581,  # ~0.33°
     "range_min": 0.1,
     "range_max": 6.0,
-    "scan_time": 0.033,
-    "transform_tolerance": 0.5,
+    "transform_tolerance": 0.1,
 }
 
 
 def _make_node(name, cloud_topic, scan_topic, use_sim_time):
-    """Create a single pointcloud_to_laserscan converter node."""
+    """Create a single pc_to_scan converter node."""
     return Node(
-        package="pointcloud_to_laserscan",
-        executable="pointcloud_to_laserscan_node",
+        package="vf_robot_slam",
+        executable="pc_to_scan.py",
         name=name,
         output="screen",
         parameters=[{**SCAN_PARAMS, "use_sim_time": use_sim_time}],
@@ -92,7 +93,7 @@ def launch_setup(context, *args, **kwargs):
                     "=" * 70,
                     "\n",
                     "depth_to_scan [pc2scan]: D435i → /scan\n",
-                    "  target_frame=base_footprint, min_height=0.05 m (floor excluded)\n",
+                    "  target_frame=base_footprint, min_height=0.02 m (floor excluded)\n",
                     "=" * 70,
                     "\n",
                 ]
@@ -132,18 +133,10 @@ def launch_setup(context, *args, **kwargs):
         )
 
     # ── Dual camera ──────────────────────────────────────────────────────────
-    #
-    # CRITICAL STARTUP ORDER:
-    #   1. scan_merger FIRST  — subscribes to /scan_d435i and /scan_d455
-    #   2. pc_to_scan_d435i   — checks for subscribers on /scan_d435i,
-    #                           finds scan_merger → activates pointcloud input
-    #   3. pc_to_scan_d455    — same for /scan_d455
-    #
-    # If this order is reversed, the converter nodes start with zero
-    # subscribers and their lazy subscription keeps them idle forever.
+    # No special startup order needed — pc_to_scan.py uses normal rclpy
+    # subscriptions, not lazy subscription. All nodes can start together.
     # ─────────────────────────────────────────────────────────────────────────
     else:
-        # ── Step 1: Start scan_merger FIRST (if merging) ─────────────────────
         if merge_scans.lower() == "true":
             nodes.append(
                 LogInfo(
@@ -179,7 +172,7 @@ def launch_setup(context, *args, **kwargs):
                 )
             )
 
-        # ── Step 2: Start converter nodes AFTER merger is subscribed ─────────
+        # Converter nodes — no startup order dependency
         nodes.append(
             _make_node(
                 "pc_to_scan_d435i",
@@ -197,7 +190,6 @@ def launch_setup(context, *args, **kwargs):
             )
         )
 
-        # ── No merge: warn the user ─────────────────────────────────────────
         if merge_scans.lower() != "true":
             nodes.append(
                 LogInfo(
