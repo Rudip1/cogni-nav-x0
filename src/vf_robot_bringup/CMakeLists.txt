@@ -8,13 +8,15 @@ install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
 )
 
-# ── Install config files ──
+# ── Install config files (Nav2 params, etc.) ──
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
 )
 
-# ── Install rviz config ──
-# (already inside config/, but kept explicit for clarity)
+# ── Install RViz config files ──
+install(DIRECTORY rviz/
+  DESTINATION share/${PROJECT_NAME}/rviz
+)
 
 # ── ament resource marker ──
 install(FILES resource/${PROJECT_NAME}

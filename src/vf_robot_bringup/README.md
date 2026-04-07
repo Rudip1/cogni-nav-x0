@@ -152,8 +152,8 @@ vf_robot_bringup/
 ├── package.xml
 ├── config/
 │   ├── nav2_params.yaml              # Nav2 params tuned for ViroFighter
-│   └── rviz/
-│       └── vf_bringup.rviz           # RViz with Nav2 panels
+├── rviz/
+│   └── vf_bringup.rviz               # RViz with Nav2 panels
 ├── launch/
 │   ├── bringup_launch.py             # THE entry point (all 4 modes)
 │   ├── navigation_launch.py          # Nav2 stack (controller, planner, BT, etc.)
@@ -185,7 +185,7 @@ vf_robot_bringup/
 | `params_file` | path | `config/nav2_params.yaml` | Nav2 parameters file |
 | `use_sim_time` | `true`, `false` | `true` | Simulation or real robot |
 | `rviz` | `true`, `false` | `true` | Launch RViz |
-| `rviz_config` | path | `config/rviz/vf_bringup.rviz` | RViz config file |
+| `rviz` | path | `rviz/vf_bringup.rviz` | RViz config file |
 
 ---
 
