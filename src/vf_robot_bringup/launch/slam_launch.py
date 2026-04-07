@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # =============================================================================
 # vf_robot_bringup / slam_launch.py
 # =============================================================================
@@ -22,8 +24,8 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    params_file = LaunchConfiguration('params_file')
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    params_file = LaunchConfiguration("params_file")
+    use_sim_time = LaunchConfiguration("use_sim_time")
 
     # ── SLAM Toolbox (online async) ──
     # Builds a 2D occupancy grid from /scan.
@@ -31,14 +33,14 @@ def generate_launch_description():
     # "online_async" mode: processes scans asynchronously for better performance.
 
     slam_toolbox_node = Node(
-        package='slam_toolbox',
-        executable='async_slam_toolbox_node',
-        name='slam_toolbox',
-        output='screen',
+        package="slam_toolbox",
+        executable="async_slam_toolbox_node",
+        name="slam_toolbox",
+        output="screen",
         parameters=[
             params_file,
             {
-                'use_sim_time': use_sim_time,
+                "use_sim_time": use_sim_time,
             },
         ],
     )
@@ -47,23 +49,26 @@ def generate_launch_description():
     # SLAM Toolbox in Humble supports lifecycle management.
 
     lifecycle_manager_slam = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_slam',
-        output='screen',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'autostart': True,
-            'node_names': [
-                'slam_toolbox',
-            ],
-        }],
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_slam",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time,
+                "autostart": True,
+                "node_names": [
+                    "slam_toolbox",
+                ],
+            }
+        ],
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument('params_file', description='Nav2 params YAML'),
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
-
-        slam_toolbox_node,
-        lifecycle_manager_slam,
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("params_file", description="Nav2 params YAML"),
+            DeclareLaunchArgument("use_sim_time", default_value="true"),
+            slam_toolbox_node,
+            lifecycle_manager_slam,
+        ]
+    )

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # =============================================================================
 # vf_robot_bringup / localization_launch.py
 # =============================================================================
@@ -26,24 +28,24 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     # ── Arguments ──
-    map_yaml = LaunchConfiguration('map')
-    params_file = LaunchConfiguration('params_file')
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    map_yaml = LaunchConfiguration("map")
+    params_file = LaunchConfiguration("params_file")
+    use_sim_time = LaunchConfiguration("use_sim_time")
 
     # ── map_server ──
     # Loads the 2D occupancy grid from .pgm/.yaml and publishes on /map.
     # This is the ONLY /map publisher in AMCL mode.
 
     map_server = Node(
-        package='nav2_map_server',
-        executable='map_server',
-        name='map_server',
-        output='screen',
+        package="nav2_map_server",
+        executable="map_server",
+        name="map_server",
+        output="screen",
         parameters=[
             params_file,
             {
-                'use_sim_time': use_sim_time,
-                'yaml_filename': map_yaml,
+                "use_sim_time": use_sim_time,
+                "yaml_filename": map_yaml,
             },
         ],
     )
@@ -54,13 +56,13 @@ def generate_launch_description():
     # User provides initial pose via RViz "2D Pose Estimate" button.
 
     amcl = Node(
-        package='nav2_amcl',
-        executable='amcl',
-        name='amcl',
-        output='screen',
+        package="nav2_amcl",
+        executable="amcl",
+        name="amcl",
+        output="screen",
         parameters=[
             params_file,
-            {'use_sim_time': use_sim_time},
+            {"use_sim_time": use_sim_time},
         ],
     )
 
@@ -68,26 +70,29 @@ def generate_launch_description():
     # map_server must be active before AMCL (AMCL needs /map to initialize).
 
     lifecycle_manager_localization = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_localization',
-        output='screen',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'autostart': True,
-            'node_names': [
-                'map_server',
-                'amcl',
-            ],
-        }],
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_localization",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time,
+                "autostart": True,
+                "node_names": [
+                    "map_server",
+                    "amcl",
+                ],
+            }
+        ],
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument('map', description='Full path to map .yaml file'),
-        DeclareLaunchArgument('params_file', description='Nav2 params YAML'),
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
-
-        map_server,
-        amcl,
-        lifecycle_manager_localization,
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("map", description="Full path to map .yaml file"),
+            DeclareLaunchArgument("params_file", description="Nav2 params YAML"),
+            DeclareLaunchArgument("use_sim_time", default_value="true"),
+            map_server,
+            amcl,
+            lifecycle_manager_localization,
+        ]
+    )

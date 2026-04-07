@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # =============================================================================
 # vf_robot_bringup / rviz_launch.py
 # =============================================================================
@@ -17,32 +19,34 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    pkg_bringup = get_package_share_directory('vf_robot_bringup')
+    pkg_bringup = get_package_share_directory("vf_robot_bringup")
 
-    default_rviz = os.path.join(pkg_bringup, 'config', 'rviz', 'vf_bringup.rviz')
+    default_rviz = os.path.join(pkg_bringup, "rviz", "vf_bringup.rviz")
 
     declare_rviz_config = DeclareLaunchArgument(
-        'rviz_config',
+        "rviz_config",
         default_value=default_rviz,
-        description='Full path to RViz config file',
+        description="Full path to RViz config file",
     )
 
     declare_use_sim_time = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='true',
+        "use_sim_time",
+        default_value="true",
     )
 
     rviz2 = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        arguments=['-d', LaunchConfiguration('rviz_config')],
-        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", LaunchConfiguration("rviz_config")],
+        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
     )
 
-    return LaunchDescription([
-        declare_rviz_config,
-        declare_use_sim_time,
-        rviz2,
-    ])
+    return LaunchDescription(
+        [
+            declare_rviz_config,
+            declare_use_sim_time,
+            rviz2,
+        ]
+    )

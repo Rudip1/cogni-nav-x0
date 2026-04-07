@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 # =============================================================================
 # vf_robot_bringup / bringup_launch.py
 # =============================================================================
@@ -133,7 +134,7 @@ def generate_launch_description():
 
     declare_rviz_config = DeclareLaunchArgument(
         "rviz_config",
-        default_value=os.path.join(pkg_bringup, "config", "rviz", "vf_bringup.rviz"),
+        default_value=os.path.join(pkg_bringup, "rviz", "vf_bringup.rviz"),
         description="Full path to RViz config file",
     )
 
