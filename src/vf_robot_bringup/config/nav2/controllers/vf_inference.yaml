@@ -1,0 +1,122 @@
+# =============================================================================
+# vf_robot_bringup / config / nav2 / controllers / vf_inference.yaml
+# =============================================================================
+# VF Robot Controller — INFERENCE mode  ★ THE THESIS CONTRIBUTION ★
+#
+# The 10 modular critics are weighted at EACH control cycle by a lightweight
+# MLP neural network that reads the local costmap + sensor observations and
+# outputs per-critic importance weights. The plugin subscribes to
+# `/vf_controller/meta_weights` (published by the Python sidecar node) and
+# applies those weights in the MPPI cost sum.
+#
+# PURPOSE:
+#   - Thesis main result: context-adaptive navigation via learned weights
+#   - Requires T3 sidecar:
+#       conda activate dl
+#       ros2 launch vf_robot_controller meta_critic_inference.launch.py
+#
+# TOPIC WIRING (hardcoded in controller.cpp, NOT YAML params):
+#   - The plugin subscribes to `/vf_controller/meta_weights`
+#     (std_msgs/Float64MultiArray, 10 elements — one per critic)
+#   - The Python sidecar publishes to the same topic at ~10 Hz
+#
+# WHAT'S DIFFERENT FROM vf_fixed.yaml:
+#   - controller_mode: "inference"   (was "fixed")
+#   - visualize_trajectories: false  (was true; off for production runs)
+#   - visualize_gcf: false           (was true)
+#   - visualize_max_trajectories: 0  (was 20)
+#
+# MERGE CONTRACT:
+#   Fragment. Merged with nav2_base.yaml by compose_params.py.
+#   Provides ONLY the `FollowPath:` block under controller_server.ros__parameters.
+#
+# PARAMETER SOURCE OF TRUTH:
+#   vf_robot_controller/src/parameter_handler.cpp
+# =============================================================================
+
+controller_server:
+  ros__parameters:
+    FollowPath:
+      plugin: "vf_robot_controller::VFRobotController"
+      controller_mode: "inference" # ← NN drives critic weights via /vf_controller/meta_weights
+
+      # ── MPPI optimizer ──────────────────────────────────────────────────
+      num_samples: 300
+      num_iterations: 2
+      horizon_time: 2.5
+      control_frequency: 20.0
+      temperature: 0.5
+
+      # ── B-spline trajectory parameterization ────────────────────────────
+      spline_degree: 3
+      min_knots: 4
+      max_knots: 14
+      knot_density_scale: 1.0
+
+      # ── GCF (Geometric Complexity Field) ────────────────────────────────
+      gcf_radius: 2.0
+      gcf_weight_2d: 0.5
+      gcf_weight_clutter: 0.25
+      gcf_weight_volumetric: 0.25
+      gcf_clutter_radius: 0.8
+      gcf_update_rate: 10.0
+
+      # ── Robot dimensions (overridden by robot profile) ──────────────────
+      robot_length: 0.281
+      robot_width:  0.306
+      robot_height_min: 0.05
+      robot_height_max: 0.40
+
+      # ── Hard safety margin ──────────────────────────────────────────────
+      safety_inflation: 0.07
+
+      # ── Velocity limits (overridden by robot profile) ───────────────────
+      max_vel_x: 0.22
+      min_vel_x: 0.04
+      max_vel_theta: 1.0
+      min_vel_theta: 0.0
+      max_speed_in_tight: 0.10
+      tight_gcf_threshold: 0.55
+      acc_lim_x: 0.4
+      acc_lim_theta: 1.2
+
+      # ── 10 META_CRITIC modular critics ──────────────────────────────────
+      critics:
+        - "ObstacleCritic"
+        - "VolumetricCritic"
+        - "DynamicObstacleCritic"
+        - "PathFollowCritic"
+        - "SmoothnessCritic"
+        - "GoalCritic"
+        - "VelocityCritic"
+        - "CorridorCritic"
+        - "ClearanceCritic"
+        - "OscillationCritic"
+
+      # ── Critic weight bounds (FIXED mode uses open values directly) ─────
+      # In META_CRITIC inference mode these bound the NN-adapted weights.
+      # In FIXED mode only the `_open` values are used (no adaptation).
+      obstacle_weight_open: 1.0
+      obstacle_weight_tight: 2.5
+      path_follow_weight_open: 1.5
+      path_follow_weight_tight: 0.6
+
+      # ── MPPI noise ──────────────────────────────────────────────────────
+      noise_sigma_x: 0.12
+      noise_sigma_theta: 0.25
+
+      # ── Per-critic tuning (dotted-key format the plugin parses) ─────────
+      GoalCritic.goal_activation_dist: 0.8
+      GoalCritic.heading_weight: 0.1
+      ClearanceCritic.desired_clearance: 0.6
+      ClearanceCritic.samples: 10
+      ObstacleCritic.repulsion_radius: 0.6
+
+      # ── 3D sensor ──────────────────────────────────────────────────────
+      pointcloud_topic: "/scan_3d"
+      use_3d_clearance: false
+
+      # ── Debug visualization (OFF for INFERENCE — production runs) ──────
+      visualize_trajectories: false
+      visualize_gcf: false
+      visualize_max_trajectories: 0
