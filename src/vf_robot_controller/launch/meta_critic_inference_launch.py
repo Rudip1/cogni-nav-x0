@@ -1,14 +1,27 @@
 """
-meta_critic_inference_launch.py — Mode 3: META_CRITIC inference
+meta_critic_inference_launch.py — META_CRITIC sidecar (Mode 3)
 
-Launches:
-  1. Nav2 controller server  (vf_robot_controller C++ plugin, mode=inference)
-  2. feature_extractor.py    (builds 410-dim feature vector)
-  3. meta_critic_inference_node.py  (runs meta_critic.pt, publishes weights)
+Launches ONLY the Python nodes needed alongside vf_robot_controller running
+in INFERENCE mode. Does NOT spawn controller_server — that lives in
+vf_robot_bringup/launch/bringup_launch.py with controller:=vf_inference.
+
+Sidecar nodes:
+  1. feature_extractor.py          — builds 410-dim feature vector from
+                                     /local_costmap/costmap, /odom, /plan
+  2. meta_critic_inference_node.py — runs meta_critic.pt and publishes
+                                     critic weights on /vf_controller/meta_weights
 
 Usage:
+  # Terminal 1 — bringup with the inference-mode controller fragment
+  ros2 launch vf_robot_bringup bringup_launch.py \\
+       robot:=virofighter controller:=vf_inference localization:=rtabmap_loc
+
+  # Terminal 2 — this sidecar (in conda dl env)
+  conda activate dl
   ros2 launch vf_robot_controller meta_critic_inference_launch.py
-  ros2 launch vf_robot_controller meta_critic_inference_launch.py config:=hospital_params.yaml
+
+Requires meta_critic/models/meta_critic.pt to exist
+(produced by `python training/train.py --method META_CRITIC`).
 """
 
 import os
@@ -22,29 +35,12 @@ from launch_ros.actions import Node
 def generate_launch_description():
     pkg = get_package_share_directory('vf_robot_controller')
 
-    config_arg = DeclareLaunchArgument(
-        'config',
-        default_value='hospital_params.yaml',
-        description='YAML config file from config/ directory')
+    default_model = os.path.join(pkg, 'meta_critic', 'models', 'meta_critic.pt')
 
-    config_file = os.path.join(
-        pkg, 'config',
-        LaunchConfiguration('config'))
-
-    model_path = os.path.join(
-        pkg, 'meta_critic', 'models', 'meta_critic.pt')
-
-    controller_server = Node(
-        package='nav2_controller',
-        executable='controller_server',
-        name='controller_server',
-        output='screen',
-        parameters=[
-            config_file,
-            {'VFController.controller_mode': 'inference'},
-        ],
-        remappings=[('/cmd_vel', '/cmd_vel')],
-    )
+    model_path_arg = DeclareLaunchArgument(
+        'model_path',
+        default_value=default_model,
+        description='Absolute path to the trained meta_critic.pt TorchScript model')
 
     feature_extractor = Node(
         package='vf_robot_controller',
@@ -59,15 +55,14 @@ def generate_launch_description():
         name='meta_critic_inference',
         output='screen',
         parameters=[
-            {'model_path':  model_path},
+            {'model_path':  LaunchConfiguration('model_path')},
             {'num_critics': 10},
             {'feature_dim': 410},
         ],
     )
 
     return LaunchDescription([
-        config_arg,
-        controller_server,
+        model_path_arg,
         feature_extractor,
         inference_node,
     ])

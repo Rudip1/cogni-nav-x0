@@ -1,18 +1,32 @@
 """
-meta_critic_collect_launch.py — Mode 2: META_CRITIC data collection
+meta_critic_collect_launch.py — META_CRITIC sidecar (Mode 2: data collection)
 
-Launches:
-  1. Nav2 controller server  (vf_robot_controller C++ plugin, mode=collect)
-  2. feature_extractor.py    (builds 410-dim feature vector)
-  3. meta_critic_data_logger.py  (writes HDF5 with critic score matrix)
+Launches ONLY the Python nodes needed alongside vf_robot_controller running
+in COLLECT mode. Does NOT spawn controller_server — that lives in
+vf_robot_bringup/launch/bringup_launch.py with controller:=vf_collect.
+
+Sidecar nodes:
+  1. feature_extractor.py         — builds 410-dim feature vector
+  2. meta_critic_data_logger.py   — subscribes to /vf_controller/critic_data
+                                    (published by the C++ DataRecorder) and
+                                    writes HDF5 files containing the N×K
+                                    critic-score matrix per timestep.
+
+HDF5 files written to: training/data/run_*.h5
 
 Usage:
+  # Terminal 1 — bringup with the collect-mode controller fragment
+  ros2 launch vf_robot_bringup bringup_launch.py \\
+       robot:=virofighter controller:=vf_collect localization:=rtabmap_loc
+
+  # Terminal 2 — this sidecar (in conda dl env)
+  conda activate dl
   ros2 launch vf_robot_controller meta_critic_collect_launch.py
-  ros2 launch vf_robot_controller meta_critic_collect_launch.py config:=hospital_params.yaml
+
+Then drive the robot via Nav2 Goal in RViz to gather episodes.
+Target: 300+ episodes per map variant.
 """
 
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -20,28 +34,10 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    pkg = get_package_share_directory('vf_robot_controller')
-
-    config_arg = DeclareLaunchArgument(
-        'config',
-        default_value='hospital_params.yaml',
-        description='YAML config file from config/ directory')
-
-    config_file = os.path.join(
-        pkg, 'config',
-        LaunchConfiguration('config'))
-
-    controller_server = Node(
-        package='nav2_controller',
-        executable='controller_server',
-        name='controller_server',
-        output='screen',
-        parameters=[
-            config_file,
-            {'VFController.controller_mode': 'collect'},
-        ],
-        remappings=[('/cmd_vel', '/cmd_vel')],
-    )
+    data_dir_arg = DeclareLaunchArgument(
+        'data_dir',
+        default_value='training/data',
+        description='Directory to write META_CRITIC HDF5 files')
 
     feature_extractor = Node(
         package='vf_robot_controller',
@@ -55,12 +51,11 @@ def generate_launch_description():
         executable='meta_critic_data_logger.py',
         name='meta_critic_data_logger',
         output='screen',
-        parameters=[{'data_dir': 'training/data'}],
+        parameters=[{'data_dir': LaunchConfiguration('data_dir')}],
     )
 
     return LaunchDescription([
-        config_arg,
-        controller_server,
+        data_dir_arg,
         feature_extractor,
         data_logger,
     ])

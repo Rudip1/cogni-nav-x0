@@ -119,9 +119,9 @@ CONTROLLER_FAMILY = {
 # Controllers that require a Python sidecar from vf_robot_controller.
 # These need to be told the user about (or auto-launched if opted in).
 SIDECAR_CONTROLLERS = {
-    "vf_inference": "meta_critic_inference.launch.py",
-    "vf_collect":   "meta_critic_collect.launch.py",
-    "vf_passive":   "imitation_inference.launch.py",
+    "vf_inference": "meta_critic_inference_launch.py",
+    "vf_collect":   "meta_critic_collect_launch.py",
+    "vf_passive":   "imitation_inference_launch.py",
 }
 
 
