@@ -1,0 +1,158 @@
+# =============================================================================
+# vf_robot_controller — Example Config (DOCUMENTATION ONLY, NOT RUNTIME)
+# =============================================================================
+# This file is NOT loaded by Nav2. It exists to document the FollowPath:
+# block that vf_robot_controller::VFRobotController accepts, so anyone
+# integrating this plugin into their own Nav2 stack can copy the relevant
+# section into their own params file.
+#
+# For the canonical, runtime-tested fragments used in this thesis, see:
+#   vf_robot_bringup/config/nav2/controllers/vf_{fixed,collect,inference,passive}.yaml
+#
+# The plugin has FOUR operating modes selected by `controller_mode:`:
+#
+#   ┌───────────┬──────────────────────────────────────────────────────────┐
+#   │ Mode      │ What the C++ plugin does                                 │
+#   ├───────────┼──────────────────────────────────────────────────────────┤
+#   │ fixed     │ Classical MPPI with the YAML-declared critic weights.   │
+#   │           │ No Python sidecar required. Use as the thesis baseline. │
+#   ├───────────┼──────────────────────────────────────────────────────────┤
+#   │ collect   │ Same as fixed, plus DataRecorder publishes the N×K      │
+#   │           │ critic-score matrix on /vf_controller/critic_data every │
+#   │           │ control cycle. Run meta_critic_data_logger.py alongside │
+#   │           │ to write HDF5 training files.                           │
+#   ├───────────┼──────────────────────────────────────────────────────────┤
+#   │ inference │ WeightAdapter subscribes to /vf_controller/meta_weights │
+#   │           │ and replaces YAML critic weights with NN output every   │
+#   │           │ cycle. Run meta_critic_inference_node.py alongside.    │
+#   │           │ Falls back to YAML weights if the sidecar is absent.   │
+#   ├───────────┼──────────────────────────────────────────────────────────┤
+#   │ passive   │ computeVelocityCommands() returns zero immediately.    │
+#   │           │ The Nav2 action server is satisfied but the C++ plugin │
+#   │           │ produces no /cmd_vel. Run imitation_inference_node.py  │
+#   │           │ alongside — it owns /cmd_vel directly. Used for the    │
+#   │           │ behaviour-cloning baseline.                            │
+#   └───────────┴──────────────────────────────────────────────────────────┘
+#
+# To switch modes, change ONE line: `controller_mode: "<mode>"`. Everything
+# else in this file is mode-agnostic — the plugin reads the same parameter
+# set in all four modes; some are simply ignored where they don't apply.
+# =============================================================================
+
+controller_server:
+  ros__parameters:
+
+    FollowPath:
+      plugin: "vf_robot_controller::VFRobotController"
+
+      # ────────────────────────────────────────────────────────────────────
+      # MODE SELECTION — change this single line to switch behaviour
+      # ────────────────────────────────────────────────────────────────────
+      # Valid: "fixed" | "collect" | "inference" | "passive"
+      controller_mode: "fixed"
+
+      # ────────────────────────────────────────────────────────────────────
+      # MPPI optimizer
+      # ────────────────────────────────────────────────────────────────────
+      num_samples:       300       # trajectory candidates per cycle
+      num_iterations:    2         # MPPI inner iterations
+      horizon_time:      2.5       # seconds of look-ahead
+      control_frequency: 20.0      # Hz — must match Nav2 controller_frequency
+      temperature:       0.5       # MPPI softmax sharpness
+
+      # ────────────────────────────────────────────────────────────────────
+      # B-spline trajectory parameterisation
+      # ────────────────────────────────────────────────────────────────────
+      spline_degree:      3
+      min_knots:          4
+      max_knots:          14
+      knot_density_scale: 1.0
+
+      # ────────────────────────────────────────────────────────────────────
+      # GCF — Geometric Complexity Field (drives tight/open mode switching)
+      # ────────────────────────────────────────────────────────────────────
+      gcf_radius:            2.0
+      gcf_weight_2d:         0.5
+      gcf_weight_clutter:    0.25
+      gcf_weight_volumetric: 0.25
+      gcf_clutter_radius:    0.8
+      gcf_update_rate:       10.0  # Hz
+
+      # ────────────────────────────────────────────────────────────────────
+      # Robot dimensions — OVERRIDE these for your robot
+      # ────────────────────────────────────────────────────────────────────
+      robot_length:     0.281      # metres (TB3 Waffle defaults)
+      robot_width:      0.306
+      robot_height_min: 0.05
+      robot_height_max: 0.40
+      safety_inflation: 0.07       # added to footprint by hard safety shell
+
+      # ────────────────────────────────────────────────────────────────────
+      # Velocity limits — OVERRIDE for your robot
+      # ────────────────────────────────────────────────────────────────────
+      max_vel_x:           0.22
+      min_vel_x:           0.04
+      max_vel_theta:       1.0
+      min_vel_theta:       0.0
+      max_speed_in_tight:  0.10    # speed cap when GCF says "tight"
+      tight_gcf_threshold: 0.55    # GCF value above which tight mode kicks in
+      acc_lim_x:           0.4
+      acc_lim_theta:       1.2
+
+      # ────────────────────────────────────────────────────────────────────
+      # 10 modular critics — order matters: it defines the index used by
+      # the meta-critic NN output vector.
+      # ────────────────────────────────────────────────────────────────────
+      critics:
+        - "ObstacleCritic"          # idx 0
+        - "VolumetricCritic"        # idx 1
+        - "DynamicObstacleCritic"   # idx 2
+        - "PathFollowCritic"        # idx 3
+        - "SmoothnessCritic"        # idx 4
+        - "GoalCritic"              # idx 5
+        - "VelocityCritic"          # idx 6
+        - "CorridorCritic"          # idx 7
+        - "ClearanceCritic"         # idx 8
+        - "OscillationCritic"       # idx 9
+
+      # ────────────────────────────────────────────────────────────────────
+      # Critic weight bounds
+      #   FIXED mode    : only `_open` values are used (no adaptation)
+      #   INFERENCE mode: NN output is clamped to [_open, _tight] range
+      # ────────────────────────────────────────────────────────────────────
+      obstacle_weight_open:     1.0
+      obstacle_weight_tight:    2.5
+      path_follow_weight_open:  1.5
+      path_follow_weight_tight: 0.6
+
+      # ────────────────────────────────────────────────────────────────────
+      # MPPI noise (perturbation distribution)
+      # ────────────────────────────────────────────────────────────────────
+      noise_sigma_x:     0.12
+      noise_sigma_theta: 0.25
+
+      # ────────────────────────────────────────────────────────────────────
+      # Per-critic tuning — dotted-key format the plugin parses
+      # ────────────────────────────────────────────────────────────────────
+      GoalCritic.goal_activation_dist: 0.8
+      GoalCritic.heading_weight:       0.1
+      ClearanceCritic.desired_clearance: 0.6
+      ClearanceCritic.samples:           10
+      ObstacleCritic.repulsion_radius:   0.6
+
+      # ────────────────────────────────────────────────────────────────────
+      # 3D sensor (only used if use_3d_clearance: true)
+      # ────────────────────────────────────────────────────────────────────
+      pointcloud_topic:  "/scan_3d"
+      use_3d_clearance:  false
+
+      # ────────────────────────────────────────────────────────────────────
+      # Debug visualisation
+      #   FIXED      → typically ON  (sanity-check the plugin)
+      #   COLLECT    → typically OFF (long runs, no need)
+      #   INFERENCE  → typically OFF (production)
+      #   PASSIVE    → ignored       (plugin returns early)
+      # ────────────────────────────────────────────────────────────────────
+      visualize_trajectories:     true
+      visualize_gcf:              true
+      visualize_max_trajectories: 20
