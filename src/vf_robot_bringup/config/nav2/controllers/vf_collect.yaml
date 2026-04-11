@@ -13,7 +13,7 @@
 #   - Offline data collection for META_CRITIC training
 #   - Requires T3 sidecar:
 #       conda activate dl
-#       ros2 launch vf_robot_controller meta_critic_collect.launch.py \
+#       ros2 launch vf_robot_controller meta_critic_collect_launch.py \
 #           output_dir:=$HOME/cogni-nav-x0/training_data/run_YYYYMMDD
 #   - The sidecar subscribes to whatever critic-score topic the plugin
 #     publishes in collect mode and writes the h5 file.

@@ -13,7 +13,7 @@
 #   - Thesis main result: context-adaptive navigation via learned weights
 #   - Requires T3 sidecar:
 #       conda activate dl
-#       ros2 launch vf_robot_controller meta_critic_inference.launch.py
+#       ros2 launch vf_robot_controller meta_critic_inference_launch.py
 #
 # TOPIC WIRING (hardcoded in controller.cpp, NOT YAML params):
 #   - The plugin subscribes to `/vf_controller/meta_weights`

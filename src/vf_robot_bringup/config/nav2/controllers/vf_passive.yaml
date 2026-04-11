@@ -18,7 +18,7 @@
 #     learning velocities directly?"
 #   - Requires T3 sidecar:
 #       conda activate dl
-#       ros2 launch vf_robot_controller imitation_inference.launch.py
+#       ros2 launch vf_robot_controller imitation_inference_launch.py
 #
 # WHAT'S DIFFERENT FROM vf_fixed.yaml:
 #   - controller_mode: "passive"
