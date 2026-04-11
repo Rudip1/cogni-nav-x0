@@ -150,6 +150,13 @@ install(DIRECTORY meta_critic/models/
   DESTINATION share/${PROJECT_NAME}/meta_critic/models
 )
 
+# Install training normalization stats (generated during training)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/training/meta_critic_stats.npz")
+  install(FILES training/meta_critic_stats.npz
+    DESTINATION share/${PROJECT_NAME}/training
+  )
+endif()
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

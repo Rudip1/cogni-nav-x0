@@ -168,18 +168,18 @@ similarity vs ideal weight labels, prediction-vs-label scatter plots.
 
 ## Known issues
 
-- **META_CRITIC inference produces near-constant weight output** at runtime,
-  with SmoothnessCritic ≈ 0.58 and PathFollowCritic ≈ 0.37 absorbing 95% of
-  the weight regardless of the local scene. Sums to 1.0 (softmax intact)
-  but vector barely changes between cycles. Most likely cause: input
-  features are not normalised at training or inference time, only labels
-  are. Fix path: z-score normalisation of the 410-dim feature vector with
-  statistics computed over the training set, applied identically in
-  `feature_extractor.py` (or inside the model's forward pass via a fixed
-  pre-norm layer). Three diagnostic scripts and a fix design are documented
-  in the project chat history; pick this up before the next paper-quality
-  training run.
-
 - **`imitation.pt` not yet trained.** To produce it: collect IMITATION data
   via `imitation_collect_launch.py` while running a teacher controller,
   then `python training/train.py --method IMITATION`, then deploy with `cp`.
+
+## Resolved issues
+
+- **[2026-04-11] META_CRITIC feature normalization** — Fixed by adding z-score
+  normalization of the 410-dim input feature vector. Training now computes
+  mean/std statistics and saves them to `training/meta_critic_stats.npz`.
+  The inference node (`meta_critic_inference_node.py`) loads these stats and
+  applies normalization before forward pass. **To apply this fix:**
+  1. Retrain: `python training/train.py --method META_CRITIC --epochs 100`
+  2. Deploy: `cp training/checkpoints/meta_critic_best.pt meta_critic/models/meta_critic.pt`
+  3. Rebuild: `colcon build --packages-select vf_robot_controller`
+  4. The inference node will now report `[INFERENCE, NORMALIZED]` in status logs.

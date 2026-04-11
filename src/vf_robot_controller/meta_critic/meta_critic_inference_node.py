@@ -20,10 +20,12 @@ Behaviour:
   - Feature vector size mismatch: logs error, publishes uniform weights
 """
 
+import os
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
+from ament_index_python.packages import get_package_share_directory
 
 try:
     import torch
@@ -49,6 +51,11 @@ class InferenceNode(Node):
         model_path       = self.get_parameter('model_path').value
         self.num_critics = self.get_parameter('num_critics').value
         self.feature_dim = self.get_parameter('feature_dim').value
+
+        # ── Load normalization statistics ─────────────────────────────────────
+        self.feature_mean = None
+        self.feature_std = None
+        self._load_normalization_stats()
 
         # ── Load model ───────────────────────────────────────────────────────
         self.model = None
@@ -96,6 +103,33 @@ class InferenceNode(Node):
                 f'Could not load model from {model_path}: {e}\n'
                 f'Running uniform fallback weights until model is available.')
 
+    # ── Normalization statistics loading ──────────────────────────────────────
+
+    def _load_normalization_stats(self):
+        """Load feature normalization statistics from training."""
+        if not TORCH_AVAILABLE:
+            return
+
+        # Try to load from package share directory
+        try:
+            pkg_share = get_package_share_directory('vf_robot_controller')
+            stats_path = os.path.join(pkg_share, 'training', 'meta_critic_stats.npz')
+
+            if os.path.exists(stats_path):
+                stats = np.load(stats_path)
+                self.feature_mean = stats['mean']
+                self.feature_std = stats['std']
+                self.get_logger().info(
+                    f'Loaded normalization stats from {stats_path}')
+            else:
+                self.get_logger().warn(
+                    f'Normalization stats not found at {stats_path} — '
+                    f'running without feature normalization')
+        except Exception as e:
+            self.get_logger().warn(
+                f'Could not load normalization stats: {e} — '
+                f'running without feature normalization')
+
     # ── Subscription callback ─────────────────────────────────────────────────
 
     def _on_features(self, msg: Float32MultiArray):
@@ -122,6 +156,10 @@ class InferenceNode(Node):
             return self._uniform
 
         try:
+            # Apply z-score normalization if statistics are available
+            if self.feature_mean is not None and self.feature_std is not None:
+                features = (features - self.feature_mean) / self.feature_std
+
             with torch.no_grad():
                 x = torch.from_numpy(features).unsqueeze(0)   # (1, 410)
                 w = self.model(x).squeeze(0).numpy()           # (10,)
@@ -153,8 +191,9 @@ class InferenceNode(Node):
 
     def _log_status(self):
         mode = 'INFERENCE' if self.model is not None else 'UNIFORM FALLBACK'
+        norm_status = 'NORMALIZED' if self.feature_mean is not None else 'RAW FEATURES'
         self.get_logger().info(
-            f'InferenceNode [{mode}] — {self._inference_count} inferences since last log')
+            f'InferenceNode [{mode}, {norm_status}] — {self._inference_count} inferences since last log')
         self._inference_count = 0
 
 

@@ -186,6 +186,7 @@ class MetaCriticDataset(Dataset):
     Args:
         data_dir : directory containing run_*.h5 files
         n_critics: expected number of critics — must match K in HDF5 files
+        normalize: whether to apply z-score normalization to features
 
     Returns per __getitem__:
         (features: float32[410], label: float32[K])
@@ -196,12 +197,16 @@ class MetaCriticDataset(Dataset):
         data_dir: str = "training/data",
         method: str = META_CRITIC,  # kept for compatibility, ignored
         n_critics: int = 10,
+        normalize: bool = True,
     ):
         if not H5PY_AVAILABLE:
             raise ImportError("h5py required: pip3 install h5py")
 
         self.method = META_CRITIC  # Always META_CRITIC
         self.n_critics = n_critics
+        self.normalize = normalize
+        self.feature_mean = None
+        self.feature_std = None
 
         # samples stores (feature_np, label) where label is np.ndarray float32 (K,)
         self.samples: list = []
@@ -218,8 +223,32 @@ class MetaCriticDataset(Dataset):
                 f"Run the controller in COLLECT mode first."
             )
 
-        for fp in files:
-            self._load_file(fp)
+        # First pass: collect all features to compute normalization stats
+        if self.normalize:
+            all_features = []
+            for fp in files:
+                self._load_file(fp, collect_features=True, all_features=all_features)
+
+            if all_features:
+                features_stacked = np.vstack(all_features)
+                self.feature_mean = features_stacked.mean(axis=0)
+                self.feature_std = features_stacked.std(axis=0) + 1e-8
+
+                # Save statistics for deployment
+                stats_path = os.path.join(os.path.dirname(data_dir), "meta_critic_stats.npz")
+                np.savez(stats_path, mean=self.feature_mean, std=self.feature_std)
+                print(f"  Saved feature normalization stats to {stats_path}")
+                print(f"  Feature mean range: [{self.feature_mean.min():.4f}, {self.feature_mean.max():.4f}]")
+                print(f"  Feature std range:  [{self.feature_std.min():.4f}, {self.feature_std.max():.4f}]")
+
+                # Apply normalization to all samples
+                for i in range(len(self.samples)):
+                    feat, label = self.samples[i]
+                    feat_normalized = (feat - self.feature_mean) / self.feature_std
+                    self.samples[i] = (feat_normalized.astype(np.float32), label)
+        else:
+            for fp in files:
+                self._load_file(fp, collect_features=False)
 
         print(
             f"[{self.method}] MetaCriticDataset: {len(self.samples):,} samples "
@@ -233,7 +262,7 @@ class MetaCriticDataset(Dataset):
         if self.skipped_nan_label > 0:
             print(f"  Skipped {self.skipped_nan_label} samples with NaN labels")
 
-    def _load_file(self, filepath: str):
+    def _load_file(self, filepath: str, collect_features: bool = False, all_features: list = None):
         with h5py.File(filepath, "r") as f:
             missing = [k for k in ("features", "scores", "scalars") if k not in f]
             if missing:
@@ -291,6 +320,8 @@ class MetaCriticDataset(Dataset):
                 self.skipped_nan_label += 1
                 continue
 
+            if collect_features:
+                all_features.append(feat_t.astype(np.float32))
             self.samples.append((feat_t.astype(np.float32), label))
             loaded += 1
 
