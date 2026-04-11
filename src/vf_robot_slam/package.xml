@@ -33,6 +33,9 @@
   <depend>image_transport</depend>
   <depend>cv_bridge</depend>
 
+  <!-- Python runtime dependencies for scan_merger.py and pc_to_scan.py -->
+  <exec_depend>python3-numpy</exec_depend>
+
   <!-- Launch dependencies -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

@@ -31,8 +31,8 @@ Outputs (all methods):
     camera:=dual merge_scans:=true  → /scan_d435i + /scan_d455 + /scan (merged or relayed)
     camera:=dual merge_scans:=false → /scan_d435i + /scan_d455 only
 
-Integration with vf_robot_navigation:
-    Navigation package only needs to call THIS file. It does not need to know
+Integration with vf_robot_bringup:
+    The bringup package only needs to call THIS file. It does not need to know
     which underlying method is used. The `method` argument can be set by the
     user or by a top-level bringup launch file.
 """

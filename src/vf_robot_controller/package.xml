@@ -7,7 +7,7 @@
     VF Robot Controller — Nav2 local controller plugin with meta-critic
     neural network for adaptive critic weight assignment in hospital environments.
   </description>
-  <maintainer email="pravin@vfrobot.com">Pravin</maintainer>
+  <maintainer email="olipravin18@gmail.com">Pravin Oli</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
