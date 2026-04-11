@@ -44,6 +44,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
 )
 from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -84,7 +85,12 @@ def generate_launch_description():
     ])
 
     # Read the URDF file content and pass it as robot_description param
-    robot_description_content = Command(['cat ', urdf_file_path])
+    # ParameterValue wrapper is required on ROS 2 Humble to prevent YAML
+    # type-inference from mis-parsing the URDF string as a mapping.
+    robot_description_content = ParameterValue(
+        Command(['cat ', urdf_file_path]),
+        value_type=str,
+    )
 
     robot_description_param = {
         'robot_description': robot_description_content,

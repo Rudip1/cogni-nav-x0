@@ -6,19 +6,15 @@
   <description>
     ViroFighter UVC1 robot description package.
     Provides URDF/xacro model, meshes, launch files, and RViz config.
-    Hybrid C++ and Python ROS2 Humble package.
+    No C++ or Python nodes — launch-only package.
   </description>
 
-  <maintainer email="pravin@virofighter.com">pravin</maintainer>
+  <maintainer email="olipravin18@gmail.com">Pravin Oli</maintainer>
   <license>Apache-2.0</license>
 
   <!-- ── build tools ────────────────────────────────────────────────────────── -->
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
-
-  <!-- ── build + exec dependencies ─────────────────────────────────────────── -->
-  <depend>rclcpp</depend>
-  <depend>rclpy</depend>
 
   <!-- ── exec-only dependencies (Python launch infra + URDF tools) ──────────── -->
   <exec_depend>robot_state_publisher</exec_depend>

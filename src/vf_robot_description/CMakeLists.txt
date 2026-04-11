@@ -8,9 +8,7 @@ endif()
 
 # ── find dependencies ──────────────────────────────────────────────────────────
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)   # Python support in ament
-find_package(rclcpp REQUIRED)               # C++ ROS2 client library
-find_package(rclpy REQUIRED)                # Python ROS2 client library
+find_package(ament_cmake_python REQUIRED)   # needed for ament_python_install_package
 find_package(urdf REQUIRED)
 find_package(xacro REQUIRED)
 
