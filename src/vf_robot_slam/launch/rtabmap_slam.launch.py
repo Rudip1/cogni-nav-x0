@@ -85,7 +85,7 @@ def _get_rtabmap_slam_params(database_path, delete_db, use_sim_time):
         "Rtabmap/TimeThr": "0.0",
         "Rtabmap/LoopThr": "0.11",
         "RGBD/LoopClosureReextractFeatures": "true",
-        "RGBD/OptimizeMaxError": "3.0",
+        "RGBD/OptimizeMaxError": "1.0",        # was 3.0 — tighten to reject bad loop closures during mapping
         # ── Mapping thresholds ──
         "RGBD/LinearUpdate": "0.1",
         "RGBD/AngularUpdate": "0.1",

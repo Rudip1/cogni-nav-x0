@@ -57,27 +57,28 @@ def _get_rtabmap_loc_params(database_path, use_sim_time):
         "Optimizer/Strategy": "1",
         "Optimizer/Iterations": "20",
         "Optimizer/Slam2D": "true",
-        # ── Registration ──
-        "Reg/Strategy": "0",
+        # ── Registration — ICP matches SLAM mode, more stable than visual-only ──
+        "Reg/Strategy": "1",               # was 0 (visual) — use ICP for consistency with SLAM
+        "Vis/EstimationType": "0",         # 3D-3D (avoids OpenGV dependency)
         "Reg/Force3DoF": "true",
         # ── Visual features ──
         "Vis/MinInliers": "15",
         "Vis/InlierDistance": "0.1",
         "Vis/MaxFeatures": "500",
         "Vis/FeatureType": "8",
-        # ── Loop closure — more sensitive for reliable re-localization ──
+        # ── Loop closure ──
         "Rtabmap/DetectionRate": "2.0",
-        "Rtabmap/LoopThr": "0.09",
+        "Rtabmap/LoopThr": "0.15",            # was 0.09 — too sensitive, caused false loop closures
         "RGBD/LoopClosureReextractFeatures": "true",
-        "RGBD/OptimizeMaxError": "3.0",
+        "RGBD/OptimizeMaxError": "1.0",        # was 3.0 — too permissive, allowed large map jumps
         # ── Map is static — do not update ──
         "RGBD/LinearUpdate": "0.0",
         "RGBD/AngularUpdate": "0.0",
         # ── Memory — keep working memory small ──
         "Mem/ImageKept": "false",
         "Mem/STMSize": "10",
-        # ── Optimize from last known position ──
-        "RGBD/OptimizeFromGraphEnd": "true",
+        # ── Anchor map origin to first node — prevents map rotation on loop closure ──
+        "RGBD/OptimizeFromGraphEnd": "false",  # was true — caused map to rotate/jitter
     }
 
 
