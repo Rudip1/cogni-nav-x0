@@ -328,7 +328,7 @@ ros2 launch vf_robot_bringup bringup_launch.py \
     camera:=dual \
     map_name:=<map_name>
 ```
-**+ T3 sidecar** (`meta_critic_inference.launch.py`)
+**+ T3 sidecar** (`meta_critic_inference_launch.py`)
 
 ### Run 2: VF Passive (IMITATION baseline)
 
@@ -340,7 +340,7 @@ ros2 launch vf_robot_bringup bringup_launch.py \
     camera:=dual \
     map_name:=<map_name>
 ```
-**+ T3 sidecar** (`imitation_inference.launch.py`)
+**+ T3 sidecar** (`imitation_inference_launch.py`)
 
 The C++ plugin in `vf_passive` mode hands `/cmd_vel` ownership to the
 Python sidecar, which publishes velocities directly from the trained
@@ -439,9 +439,9 @@ from each row that applies to you, plug them into the template at the bottom.
 | `controller:=` | Plugin | Needs T3 sidecar? | Purpose |
 |---|---|---|---|
 | `vf_fixed` | VF, fixed weights | No | Ablation baseline (your plugin without ML) |
-| `vf_inference` | VF + meta-critic ML | **Yes** (`meta_critic_inference.launch.py`) | THESIS MAIN RESULT |
+| `vf_inference` | VF + meta-critic ML | **Yes** (`meta_critic_inference_launch.py`) | THESIS MAIN RESULT |
 | `vf_collect` | VF + data logger | No | Phase 2 — gather training data |
-| `vf_passive` | VF in passthrough + ML cmd_vel | **Yes** (`imitation_inference.launch.py`) | IMITATION baseline |
+| `vf_passive` | VF in passthrough + ML cmd_vel | **Yes** (`imitation_inference_launch.py`) | IMITATION baseline |
 | `mppi` | Stock Nav2 MPPI | No | Primary external baseline |
 | `dwb` | Stock Nav2 DWB | No | Secondary external baseline |
 
@@ -537,7 +537,7 @@ source ~/cogni-nav-x0/install/setup.bash
 ### For `controller:=vf_inference` (META_CRITIC inference)
 
 ```bash
-ros2 launch vf_robot_controller meta_critic_inference.launch.py
+ros2 launch vf_robot_controller meta_critic_inference_launch.py
 ```
 
 ### For `controller:=vf_collect` (data logging)
@@ -546,14 +546,14 @@ ros2 launch vf_robot_controller meta_critic_inference.launch.py
 # vf_collect doesn't strictly need a sidecar — the C++ plugin writes
 # HDF5 directly. Confirm in your training/data folder if a new .h5
 # file appears after the run starts.
-ros2 launch vf_robot_controller meta_critic_collect.launch.py
+ros2 launch vf_robot_controller meta_critic_collect_launch.py
 # (only run this if your collect pipeline includes a Python logger)
 ```
 
 ### For `controller:=vf_passive` (IMITATION inference)
 
 ```bash
-ros2 launch vf_robot_controller imitation_inference.launch.py
+ros2 launch vf_robot_controller imitation_inference_launch.py
 ```
 
 ### Stopping T3

@@ -406,10 +406,18 @@ Geometry:  Box 29×124×25 mm
 
 | Camera Param | RGB | Depth |
 |---|---|---|
-| Resolution | 1280×800 | 1280×720 |
+| Resolution (real hardware) | 1280×800 | 1280×720 |
+| Resolution (Gazebo sim) | 1280×800 | **424×240** (reduced for perf — see note) |
 | H-FOV | 85.9° (1.5 rad) | 87.1° (1.52 rad) |
 | Near clip | 0.05 m | 0.60 m |
 | Far clip | 20.0 m | 6.0 m |
+
+> **Gazebo depth resolution note:** The depth sensor in `sensors.xacro` is set to 424×240
+> instead of 1280×720. At full resolution, Gazebo delivers ~1.5 Hz actual depth framerate,
+> causing pointcloud timestamps to be 150+ seconds stale and making `pc2scan` TF lookups
+> fail silently. 424×240 matches the RealSense D455 low-resolution hardware mode and
+> delivers 15–30 Hz in Gazebo. RTAB-Map visual SLAM and Nav2 obstacle detection are
+> unaffected (SLAM uses RGB; Nav2 uses the derived laserscan, not depth directly).
 
 ---
 
@@ -619,9 +627,12 @@ ros2 topic hz /tf             # should show ~50 Hz
 
 ---
 
-### Xacro launch fails with YAML parse error
+### Launch fails with YAML parse error on robot_description
 
-The `ParameterValue` wrapper is missing. Both launch files already include it:
+The `ParameterValue` wrapper is required on ROS 2 Humble. Both launch files include it:
+
+- `display_robot_xacro.launch.py` wraps the `xacro` command output
+- `display_robot_urdf.launch.py` wraps the `cat` command output
 
 ```python
 from launch_ros.descriptions import ParameterValue

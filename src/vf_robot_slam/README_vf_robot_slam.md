@@ -58,8 +58,8 @@ The cogni-nav-x0 project is split into modular packages. Each owns a specific co
 |---------|--------|---------------|-------------|
 | `vf_robot_description` | ✅ Done | URDF/xacro, sensor frames, robot model | `/robot_description`, all static TF (`base_link → sensors`) |
 | `vf_robot_gazebo` | ✅ Done | Gazebo simulation, sensor plugins, world files | `/odom`, `odom→base_footprint` TF, camera topics, `/clock` |
-| **`vf_robot_slam`** | **🔧 Active** | **SLAM, localization, depth-to-scan** | **`/map`, `map→odom` TF, `/scan`** |
-| `vf_robot_navigation` | 📋 Planned | Planners, controllers, costmaps, bringup | Nav2 stack (future) |
+| **`vf_robot_slam`** | **✅ Done** | **SLAM, localization, depth-to-scan** | **`/map`, `map→odom` TF, `/scan`** |
+| `vf_robot_bringup` | ✅ Done | Planners, controllers, costmaps, Nav2 bringup | Full Nav2 stack (all 4 modes) |
 
 ### What this package does
 
@@ -399,12 +399,15 @@ The `.db` file saves automatically.
 
 **Step 7 — Use the map**
 ```bash
-# Option A: RTAB-Map Localization (uses .db)
-ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
+# Option A: RTAB-Map Localization (uses .db) — via vf_robot_bringup
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=rtabmap_loc \
+    camera:=dual map_name:=my_office
 
-# Option B: AMCL (uses .pgm/.yaml) — via vf_robot_navigation (future)
-ros2 launch vf_robot_navigation bringup_amcl.launch.py \
-    map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
+# Option B: AMCL (uses .pgm/.yaml) — via vf_robot_bringup
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=amcl \
+    camera:=dual map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
 
 ### Alternative: Export 2D map from .db after SLAM
@@ -427,14 +430,16 @@ ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_offic
 
 ## 🗺️ Operating Modes (4 Modes)
 
-This package supports 4 mutually exclusive operating modes for integration with `vf_robot_navigation`:
+This package supports 4 mutually exclusive operating modes. All modes are
+orchestrated by `vf_robot_bringup` — pass `localization:=<mode>` to `bringup_launch.py`.
+This package provides the SLAM/localization and depth-to-scan launches that bringup includes.
 
-| Mode | What to launch from `vf_robot_slam` | What `vf_robot_navigation` provides |
-|------|-------------------------------------|-------------------------------------|
-| **1. RTAB-Map SLAM** | `rtabmap_slam.launch.py` + `depth_to_scan.launch.py` | Planners, controllers, costmaps |
-| **2. RTAB-Map Loc** | `rtabmap_loc.launch.py` + `depth_to_scan.launch.py` | Planners, controllers, costmaps |
-| **3. AMCL** | `depth_to_scan.launch.py` only | `map_server`, AMCL, planners |
-| **4. SLAM Toolbox** | `depth_to_scan.launch.py` only | SLAM Toolbox, planners |
+| Mode | What `vf_robot_slam` provides | What `vf_robot_bringup` adds |
+|------|-------------------------------|------------------------------|
+| **1. RTAB-Map SLAM** | `rtabmap_slam.launch.py` + `depth_to_scan.launch.py` | Nav2 planners, controllers, costmaps |
+| **2. RTAB-Map Loc** | `rtabmap_loc.launch.py` + `depth_to_scan.launch.py` | Nav2 planners, controllers, costmaps |
+| **3. AMCL** | `depth_to_scan.launch.py` only | `map_server`, AMCL, Nav2 planners |
+| **4. SLAM Toolbox** | `depth_to_scan.launch.py` only | SLAM Toolbox, Nav2 planners |
 
 **Key constraint:** Each mode has exactly ONE `/map` publisher and ONE `map→odom` TF publisher. Never run two modes simultaneously.
 
@@ -444,14 +449,10 @@ This package supports 4 mutually exclusive operating modes for integration with 
 # Terminal 1: Gazebo
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: RTAB-Map SLAM
-ros2 launch vf_robot_slam rtabmap_slam.launch.py camera:=dual map_name:=my_office
-
-# Terminal 3: Depth to LaserScan
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
-
-# Terminal 4: Nav2 (future)
-ros2 launch vf_robot_navigation bringup_rtabmap_slam.launch.py
+# Terminal 2: Full bringup — SLAM + depth-to-scan + Nav2 (all-in-one)
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=rtabmap_slam \
+    camera:=dual map_name:=my_office new_map:=true
 ```
 
 ### Mode 2: RTAB-Map Localization + Nav2
@@ -460,14 +461,10 @@ ros2 launch vf_robot_navigation bringup_rtabmap_slam.launch.py
 # Terminal 1: Gazebo
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: RTAB-Map Localization
-ros2 launch vf_robot_slam rtabmap_loc.launch.py camera:=dual map_name:=my_office
-
-# Terminal 3: Depth to LaserScan
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
-
-# Terminal 4: Nav2 (future)
-ros2 launch vf_robot_navigation bringup_rtabmap_loc.launch.py
+# Terminal 2: Full bringup — Loc + depth-to-scan + Nav2
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=rtabmap_loc \
+    camera:=dual map_name:=my_office
 ```
 
 ### Mode 3: AMCL + Nav2
@@ -476,12 +473,10 @@ ros2 launch vf_robot_navigation bringup_rtabmap_loc.launch.py
 # Terminal 1: Gazebo
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: Depth to LaserScan only (no RTAB-Map needed)
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
-
-# Terminal 3: Nav2 with AMCL (future — uses .pgm/.yaml map)
-ros2 launch vf_robot_navigation bringup_amcl.launch.py \
-    map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
+# Terminal 2: Full bringup — AMCL + depth-to-scan + Nav2 (needs .pgm/.yaml map)
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=amcl \
+    camera:=dual map:=~/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
 
 ### Mode 4: SLAM Toolbox + Nav2
@@ -490,11 +485,10 @@ ros2 launch vf_robot_navigation bringup_amcl.launch.py \
 # Terminal 1: Gazebo
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
-# Terminal 2: Depth to LaserScan only
-ros2 launch vf_robot_slam depth_to_scan.launch.py camera:=dual
-
-# Terminal 3: Nav2 with SLAM Toolbox (future)
-ros2 launch vf_robot_navigation bringup_slam_toolbox.launch.py
+# Terminal 2: Full bringup — SLAM Toolbox + depth-to-scan + Nav2
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=slam_toolbox \
+    camera:=dual
 ```
 
 ---
@@ -515,7 +509,7 @@ This is the master cross-check table. For Nav2 autonomous navigation to work, **
 | `base_link→sensor` TFs | `vf_robot_description` | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub |
 | `/robot_description` | `vf_robot_description` | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub | ✅ robot_state_pub |
 | `/clock` | `vf_robot_gazebo` | ✅ Gazebo | ✅ Gazebo | ✅ Gazebo | ✅ Gazebo |
-| Nav2 planners/controllers | `vf_robot_navigation` | 📋 future | 📋 future | 📋 future | 📋 future |
+| Nav2 planners/controllers | `vf_robot_bringup` | ✅ bringup_launch.py | ✅ bringup_launch.py | ✅ bringup_launch.py | ✅ bringup_launch.py |
 
 ### Which package provides each launch
 
@@ -525,8 +519,8 @@ This is the master cross-check table. For Nav2 autonomous navigation to work, **
 | `rtabmap_slam.launch.py` | `vf_robot_slam` | Mode 1 only |
 | `rtabmap_loc.launch.py` | `vf_robot_slam` | Mode 2 only |
 | `depth_to_scan.launch.py` | `vf_robot_slam` | All modes |
-| `bringup_amcl.launch.py` | `vf_robot_navigation` | Mode 3 only (future) |
-| `bringup_slam_toolbox.launch.py` | `vf_robot_navigation` | Mode 4 only (future) |
+| `bringup_launch.py localization:=amcl` | `vf_robot_bringup` | Mode 3 |
+| `bringup_launch.py localization:=slam_toolbox` | `vf_robot_bringup` | Mode 4 |
 
 ### Map file requirements per mode
 
@@ -830,9 +824,9 @@ depth_to_scan.launch.py               ← Router (the ONLY file users call)
          └── include/depth_to_scan_pc2scan.launch.py   (pc_to_scan.py custom node)
 ```
 
-### Why this matters for `vf_robot_navigation`
+### Why this matters for `vf_robot_bringup`
 
-The navigation package only needs to know **three launch file names**:
+The bringup package only needs to know **three launch file names**:
 
 | Navigation calls | From `vf_robot_slam` |
 |------------------|---------------------|

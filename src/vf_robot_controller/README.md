@@ -135,11 +135,11 @@ vf_robot_controller/
 │   └── vf_controller_example.yaml
 │
 └── test/                        # gtest unit tests
-├── test_critics.cpp
-├── test_optimizer.cpp
-├── test_safety.cpp
-├── test_gcf.cpp
-└── test_trajectory.cpp
+    ├── test_critics.cpp
+    ├── test_optimizer.cpp
+    ├── test_safety.cpp
+    ├── test_gcf.cpp
+    └── test_trajectory.cpp
 
 ## The 10 critics
 

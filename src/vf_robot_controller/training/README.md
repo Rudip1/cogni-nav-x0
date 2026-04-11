@@ -166,13 +166,12 @@ similarity vs ideal weight labels, prediction-vs-label scatter plots.
 - **Per-critic min-max normalization in `dataset.py`** addresses a scale imbalance bug where SmoothnessCritic raw scores (0–586,000 range) dominate label generation. This fix lives at line 63 (`normalize_score_matrix`) and is applied inside `recover_ideal_weights()` at line 124.
 - **Watch for `__pycache__` drift.** The training/ directory previously had a `__pycache__` of an old `dataset.py` that contained unfixed normalisation code, which silently masked changes during debugging. If you see weird behaviour after editing, `rm -rf training/__pycache__`.
 
-## Known issues
-
-- **`imitation.pt` not yet trained.** To produce it: collect IMITATION data
-  via `imitation_collect_launch.py` while running a teacher controller,
-  then `python training/train.py --method IMITATION`, then deploy with `cp`.
-
 ## Resolved issues
+
+- **[2026-04-11] IMITATION model trained and deployed.** `imitation.pt` is
+  live at `meta_critic/models/imitation.pt`. Use `imitation_inference_launch.py`
+  to run it. Data was collected via `imitation_collect_launch.py` and trained
+  with `python training/train.py --method IMITATION`.
 
 - **[2026-04-11] META_CRITIC feature normalization** — Fixed by adding z-score
   normalization of the 410-dim input feature vector. Training now computes

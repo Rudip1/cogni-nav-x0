@@ -89,19 +89,21 @@ source install/setup.bash
 ### Launch Simulation (Xacro pipeline — recommended for development)
 
 ```bash
+# Empty world — Gazebo only, no RViz
 ros2 launch vf_robot_gazebo vf_empty_world_xacro.launch.py
-```
-```bash
-ros2 launch vf_robot_gazebo vf_empty_world_xacro_rviz.launch.py
+
+# My world with RViz (costmap + Nav2 panels)
+ros2 launch vf_robot_gazebo vf_my_world_xacro_rviz.launch.py
 ```
 
 ### Launch Simulation (SDF pipeline — faster startup)
 
 ```bash
+# Empty world — Gazebo only, no RViz
 ros2 launch vf_robot_gazebo vf_empty_world_sdf.launch.py
-```
-```bash
-ros2 launch vf_robot_gazebo vf_empty_world_sdf_rviz.launch.py
+
+# My world with RViz (costmap + Nav2 panels)
+ros2 launch vf_robot_gazebo vf_my_world_sdf_rviz.launch.py
 ```
 
 You should see Gazebo with the ViroFighter robot and rqt_robot_steering GUI.
@@ -131,10 +133,12 @@ vf_robot_gazebo/
 │   ├── vf_robot_state_publisher.launch.py   # Shared by BOTH pipelines
 │   ├── vf_spawn_xacro.launch.py             # Spawns from /robot_description topic
 │   ├── vf_spawn_sdf.launch.py               # Spawns from model.sdf file
-│   ├── vf_empty_world_xacro.launch.py       # Xacro pipeline
-│   ├── vf_empty_world_sdf.launch.py         # SDF pipeline
-│   ├── vf_my_world_xacro.launch.py
-│   ├── vf_my_world_sdf.launch.py
+│   ├── vf_empty_world_xacro.launch.py       # Xacro pipeline, no RViz
+│   ├── vf_empty_world_sdf.launch.py         # SDF pipeline, no RViz
+│   ├── vf_my_world_xacro.launch.py          # Xacro pipeline, no RViz
+│   ├── vf_my_world_xacro_rviz.launch.py     # Xacro pipeline + RViz
+│   ├── vf_my_world_sdf.launch.py            # SDF pipeline, no RViz
+│   ├── vf_my_world_sdf_rviz.launch.py       # SDF pipeline + RViz
 │   ├── vf_hospital_world_xacro.launch.py
 │   └── vf_hospital_world_sdf.launch.py
 ├── 📂 models/

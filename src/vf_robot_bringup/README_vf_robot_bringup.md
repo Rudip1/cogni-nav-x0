@@ -1,4 +1,4 @@
-# 🤖 `vf_robot_bringup`
+# `vf_robot_bringup`
 
 > **ViroFighter UVC-1 Robot — Navigation Bringup Package**
 > ROS 2 Humble · Nav2 · RTAB-Map · AMCL · SLAM Toolbox
@@ -13,11 +13,11 @@
 
 - [Overview](#-overview)
 - [Quick Start](#-quick-start)
-- [All 4 Modes](#-all-4-modes)
+- [All 4 Localization Modes](#-all-4-localization-modes)
 - [Package Structure](#-package-structure)
 - [Arguments Reference](#-arguments-reference)
 - [Architecture](#️-architecture)
-- [Nav2 Parameters](#-nav2-parameters)
+- [Nav2 Parameters — Composed Config](#-nav2-parameters--composed-config)
 - [Using with VFRobotController](#-using-with-vfrobotcontroller)
 - [RViz Controls](#-rviz-controls)
 - [Verification](#-verification)
@@ -28,15 +28,15 @@
 
 ## 🌟 Overview
 
-`vf_robot_bringup` is the **single entry point** for all ViroFighter navigation. One launch file, one `mode` argument — it orchestrates SLAM/localization, depth-to-scan, Nav2, and RViz automatically.
+`vf_robot_bringup` is the **single entry point** for all ViroFighter navigation. One launch file with three key arguments — `robot:=`, `controller:=`, `localization:=` — it orchestrates SLAM/localization, depth-to-scan, Nav2, and RViz automatically.
 
 **What it does:**
 
 ```
-bringup_launch.py  mode:=<mode>
+bringup_launch.py  robot:=virofighter  controller:=mppi  localization:=rtabmap_slam
        │
        ├── depth_to_scan  (from vf_robot_slam)     → /scan
-       ├── SLAM / Localization  (mode-specific)     → /map + map→odom TF
+       ├── SLAM / Localization  (localization-specific)  → /map + map→odom TF
        ├── Nav2 stack  (planners, controllers, BT)  → autonomous navigation
        └── RViz  (optional)                         → visualization + goal setting
 ```
@@ -80,28 +80,43 @@ source install/setup.bash
 ros2 launch vf_robot_gazebo vf_my_world_xacro.launch.py
 
 # Terminal 2: Everything else
-ros2 launch vf_robot_bringup bringup_launch.py mode:=rtabmap_slam camera:=dual map_name:=my_office
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=rtabmap_slam \
+    camera:=dual \
+    map_name:=my_office
 ```
 
 In RViz: click **Nav2 Goal** → click on the map → robot navigates while building the map.
 
 ---
 
-## 🗺️ All 4 Modes
+## 🗺️ All 4 Localization Modes
 
 ### Mode 1 — RTAB-Map SLAM (build a new map)
 
 ```bash
 # New map
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_slam camera:=dual map_name:=my_office
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=rtabmap_slam \
+    camera:=dual \
+    map_name:=my_office \
+    new_map:=true
 
 # Continue existing map
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_slam camera:=dual map_name:=my_office new_map:=false
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=rtabmap_slam \
+    camera:=dual \
+    map_name:=my_office \
+    new_map:=false
 ```
 
-When done: Ctrl+C saves `my_office.db` automatically. To export 2D map for AMCL:
+When done: Ctrl+C saves `my_office/rtabmap.db` automatically. To export 2D map for AMCL:
 
 ```bash
 ros2 run nav2_map_server map_saver_cli -f ~/cogni-nav-x0/maps/my_office/my_office
@@ -111,16 +126,23 @@ ros2 run nav2_map_server map_saver_cli -f ~/cogni-nav-x0/maps/my_office/my_offic
 
 ```bash
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_loc camera:=dual map_name:=my_office
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=rtabmap_loc \
+    camera:=dual \
+    map_name:=my_office
 ```
 
-Requires `my_office.db` from a prior SLAM session.
+Requires `my_office/rtabmap.db` from a prior SLAM session.
 
 ### Mode 3 — AMCL (navigate in 2D map)
 
 ```bash
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=amcl camera:=dual \
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=amcl \
+    camera:=dual \
     map:=$HOME/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
 
@@ -130,7 +152,10 @@ Requires `.pgm` + `.yaml` files. In RViz, use **2D Pose Estimate** to set initia
 
 ```bash
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=slam_toolbox camera:=dual
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=slam_toolbox \
+    camera:=dual
 ```
 
 Builds a map from `/scan` data. Good alternative when RTAB-Map visual SLAM struggles.
@@ -139,7 +164,12 @@ Builds a map from `/scan` data. Good alternative when RTAB-Map visual SLAM strug
 
 ```bash
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_loc camera:=dual map_name:=my_office use_sim_time:=false
+    robot:=virofighter \
+    controller:=mppi \
+    localization:=rtabmap_loc \
+    camera:=dual \
+    map_name:=my_office \
+    use_sim_time:=false
 ```
 
 ---
@@ -150,20 +180,37 @@ ros2 launch vf_robot_bringup bringup_launch.py \
 vf_robot_bringup/
 ├── CMakeLists.txt
 ├── package.xml
+├── setup.py
 ├── config/
-│   ├── nav2_params.yaml              # Nav2 params tuned for ViroFighter
+│   ├── nav2/
+│   │   ├── nav2_base.yaml              # Base Nav2 skeleton (composed at runtime)
+│   │   ├── controllers/                # Per-controller YAML fragments
+│   │   │   ├── vf_inference.yaml       # VF controller — meta-critic inference
+│   │   │   ├── vf_collect.yaml         # VF controller — data collection
+│   │   │   ├── vf_passive.yaml         # VF controller — imitation passthrough
+│   │   │   ├── vf_fixed.yaml           # VF controller — fixed weights
+│   │   │   ├── mppi.yaml               # Stock Nav2 MPPI
+│   │   │   └── dwb.yaml                # Stock Nav2 DWB
+│   │   └── localization/
+│   │       ├── amcl.yaml               # AMCL params
+│   │       └── slam_toolbox.yaml       # SLAM Toolbox params
+│   └── robots/
+│       ├── virofighter.yaml            # ViroFighter robot profile
+│       └── turtlebot3_waffle.yaml      # TurtleBot3 robot profile
 ├── rviz/
-│   └── vf_bringup.rviz               # RViz with Nav2 panels
+│   └── vf_bringup.rviz                 # RViz with Nav2 panels
 ├── launch/
-│   ├── bringup_launch.py             # THE entry point (all 4 modes)
-│   ├── navigation_launch.py          # Nav2 stack (controller, planner, BT, etc.)
-│   ├── localization_launch.py        # AMCL + map_server (Mode 3)
-│   ├── slam_launch.py                # SLAM Toolbox (Mode 4)
-│   └── rviz_launch.py                # Standalone RViz
+│   ├── bringup_launch.py               # THE entry point (all modes)
+│   ├── navigation_launch.py            # Nav2 stack (controller, planner, BT, etc.)
+│   ├── localization_launch.py          # AMCL + map_server (Mode 3)
+│   ├── slam_launch.py                  # SLAM Toolbox (Mode 4)
+│   └── rviz_launch.py                  # Standalone RViz
 ├── resource/
 │   └── vf_robot_bringup
 └── vf_robot_bringup/
-    └── __init__.py
+    ├── __init__.py
+    └── launch_utils/
+        └── compose_params.py           # Merges nav2_base + controller + robot fragments
 ```
 
 ---
@@ -174,18 +221,24 @@ vf_robot_bringup/
 
 | Argument | Values | Default | Description |
 |---|---|---|---|
-| `mode` | `rtabmap_slam`, `rtabmap_loc`, `amcl`, `slam_toolbox` | `rtabmap_slam` | Navigation mode |
+| `robot` | `virofighter`, `turtlebot3_waffle` | `virofighter` | Robot profile (footprint, velocity limits) |
+| `controller` | `vf_inference`, `vf_fixed`, `vf_collect`, `vf_passive`, `mppi`, `dwb` | `mppi` | Nav2 local controller |
+| `localization` | `rtabmap_slam`, `rtabmap_loc`, `amcl`, `slam_toolbox` | `rtabmap_slam` | Navigation/SLAM mode |
 | `camera` | `d435i`, `d455`, `dual` | `dual` | Camera config for depth-to-scan |
-| `scan_method` | `dimg`, `pc2scan` | `pc2scan` | Depth-to-scan method |
+| `scan_method` | `dimg`, `pc2scan` | `pc2scan` | Depth-to-scan conversion method |
 | `merge_scans` | `true`, `false` | `true` | Merge dual scans into /scan |
 | `map_name` | string | `default_map` | Map folder name (RTAB-Map modes) |
-| `map` | path | `""` | Full path to .yaml map (AMCL mode) |
+| `map` | path | `""` | Full path to .yaml map (AMCL mode only) |
 | `maps_dir` | path | `~/cogni-nav-x0/maps` | Base maps directory |
-| `new_map` | `true`, `false` | `true` | Fresh map or continue (RTAB-Map SLAM) |
-| `params_file` | path | `config/nav2_params.yaml` | Nav2 parameters file |
+| `new_map` | `true`, `false` | `true` | Fresh map or continue (RTAB-Map SLAM only) |
 | `use_sim_time` | `true`, `false` | `true` | Simulation or real robot |
 | `rviz` | `true`, `false` | `true` | Launch RViz |
-| `rviz` | path | `rviz/vf_bringup.rviz` | RViz config file |
+| `rviz_config` | path | auto | Custom RViz config file path |
+| `autostart_sidecar` | `true`, `false` | `false` | Auto-start ML sidecar (for unattended runs) |
+
+> **Note**: The `params_file` argument does **not** exist. Nav2 parameters are composed
+> automatically from per-robot and per-controller YAML fragments by `compose_params.py`.
+> To customise params, edit the appropriate fragment in `config/nav2/`.
 
 ---
 
@@ -196,14 +249,14 @@ vf_robot_bringup/
 ```
                            ┌─────────────────────────────────────┐
                            │        bringup_launch.py            │
-                           │           mode:=???                 │
+                           │  robot:= controller:= localization:=│
                            └──────────┬──────────────────────────┘
                                       │
               ┌───────────────────────┼───────────────────────┐
               │                       │                       │
      ┌────────▼────────┐   ┌─────────▼─────────┐   ┌────────▼────────┐
-     │  depth_to_scan  │   │  Mode-specific     │   │  Nav2 stack     │
-     │  (ALL modes)    │   │  map provider      │   │  (ALL modes)    │
+     │  depth_to_scan  │   │  Localization      │   │  Nav2 stack     │
+     │  (ALL modes)    │   │  (mode-specific)   │   │  (ALL modes)    │
      │                 │   │                    │   │                 │
      │  from           │   │  rtabmap_slam  OR  │   │  controller     │
      │  vf_robot_slam  │   │  rtabmap_loc   OR  │   │  planner        │
@@ -215,19 +268,20 @@ vf_robot_bringup/
                            └────────────────────┘
 ```
 
-### Dependency chain
+### Nav2 param composition
+
+`compose_params.py` merges three YAML fragments at runtime:
 
 ```
-vf_robot_description ──► vf_robot_gazebo ──► [Gazebo running]
-         │                                         │
-         └──► vf_robot_slam ◄──────────────────────┘
-                    │
-                    └──► vf_robot_bringup ◄── vf_robot_controller (plugin)
+nav2_base.yaml  +  config/robots/<robot>.yaml  +  config/nav2/controllers/<controller>.yaml
+       └─────────────────────────────────────────────────────────┘
+                       written to /tmp/nav2_<robot>_<controller>_<localization>_*.yaml
+                       passed to navigation_launch.py as params_file
 ```
 
 ### Who publishes what
 
-| Output | Mode 1 (SLAM) | Mode 2 (Loc) | Mode 3 (AMCL) | Mode 4 (SlamTB) |
+| Output | rtabmap_slam | rtabmap_loc | amcl | slam_toolbox |
 |---|---|---|---|---|
 | `/map` | RTAB-Map | RTAB-Map (.db) | map_server (.pgm) | SLAM Toolbox |
 | `map→odom` TF | RTAB-Map | RTAB-Map | AMCL | SLAM Toolbox |
@@ -238,9 +292,20 @@ vf_robot_description ──► vf_robot_gazebo ──► [Gazebo running]
 
 ---
 
-## 🔧 Nav2 Parameters
+## 🔧 Nav2 Parameters — Composed Config
 
-The default `config/nav2_params.yaml` is tuned for ViroFighter:
+Nav2 parameters are **not** a single flat file. They are composed from fragments
+at launch time by `compose_params.py`. The resulting file is written to
+`/tmp/nav2_<robot>_<controller>_<localization>_<timestamp>.yaml`.
+
+### Inspect the composed YAML at runtime
+
+```bash
+ls -lt /tmp/nav2_*.yaml | head -1   # most recent
+cat /tmp/nav2_virofighter_mppi_rtabmap_loc_*.yaml | less
+```
+
+### Key defaults (virofighter robot profile)
 
 | Parameter | Value | Why |
 |---|---|---|
@@ -251,47 +316,40 @@ The default `config/nav2_params.yaml` is tuned for ViroFighter:
 | `laser_max_range` | 6.0 m | Matches RealSense depth camera range |
 | `base_frame_id` | `base_footprint` | Matches Gazebo diff drive output |
 
-### Custom params file
-
-Pass any params file to override defaults:
-
-```bash
-ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_loc camera:=dual map_name:=my_office \
-    params_file:=/path/to/your/custom_params.yaml
-```
-
 ---
 
 ## 🎮 Using with VFRobotController
 
-To use your custom `vf_robot_controller::VFRobotController` plugin instead of DWB:
+The VF controller plugin supports four modes controlled by `controller:=`:
 
-1. Edit the `FollowPath` section in your params file:
+| `controller:=` | Plugin mode | Python sidecar | Purpose |
+|---|---|---|---|
+| `vf_fixed` | Fixed YAML weights | None | Ablation baseline |
+| `vf_inference` | Meta-critic NN weights | `meta_critic_inference_launch.py` | **Thesis main result** |
+| `vf_collect` | Fixed + HDF5 logging | `meta_critic_collect_launch.py` | Data collection |
+| `vf_passive` | Zero cmd_vel (passthrough) | `imitation_inference_launch.py` | Imitation baseline |
 
-```yaml
-controller_server:
-  ros__parameters:
-    FollowPath:
-      plugin: "vf_robot_controller::VFRobotController"
-      controller_mode: "inference"   # or "fixed" or "collect"
-      # ... your VFRobotController params ...
-```
+### Running VF Inference (example)
 
-2. Launch with your params:
-
+**Terminal 2 — bringup:**
 ```bash
 ros2 launch vf_robot_bringup bringup_launch.py \
-    mode:=rtabmap_loc camera:=dual map_name:=my_office \
-    params_file:=$HOME/cogni-nav-x0/src/vf_robot_controller/config/tb3_waffle_params.yaml
+    robot:=virofighter \
+    controller:=vf_inference \
+    localization:=rtabmap_loc \
+    camera:=dual \
+    map_name:=my_office
 ```
 
-3. For inference mode, also start the feature extractor and inference node:
-
+**Terminal 3 — ML sidecar (requires conda dl env):**
 ```bash
-ros2 run vf_robot_controller feature_extractor.py &
-ros2 run vf_robot_controller inference_node.py
+conda activate dl
+source ~/cogni-nav-x0/install/setup.bash
+ros2 launch vf_robot_controller meta_critic_inference_launch.py
 ```
+
+For the full experimental workflow see
+[`README_quick_Launch.md`](README_quick_Launch.md).
 
 ---
 
@@ -331,11 +389,8 @@ ros2 lifecycle get /controller_server    # should be: active
 ros2 lifecycle get /planner_server       # should be: active
 ros2 lifecycle get /bt_navigator         # should be: active
 
-# 5. Full TF chain
-ros2 run tf2_tools view_frames
-
-# 6. All critical topics
-ros2 topic list | grep -E "^/(map|scan|odom|plan|local_plan|cmd_vel)$"
+# 5. Inspect the composed Nav2 yaml
+ls -lt /tmp/nav2_*.yaml | head -1
 ```
 
 ---
@@ -344,29 +399,25 @@ ros2 topic list | grep -E "^/(map|scan|odom|plan|local_plan|cmd_vel)$"
 
 ### Nav2 nodes stuck in UNCONFIGURED state
 
-**Cause:** `map→odom` TF not available. Lifecycle manager waits for the full TF chain before activating nodes.
+**Cause:** `map→odom` TF not available yet. Lifecycle manager waits for the full TF chain.
 
-**Fix:** Ensure your mode-specific SLAM/localization is running and the `map` frame has appeared:
+**Fix:** Ensure your localization mode is running:
 
 ```bash
 ros2 run tf2_ros tf2_echo map odom
-# If this times out: the SLAM/localization node hasn't initialized yet
+# If this times out: SLAM/localization node hasn't initialised yet
 # For RTAB-Map: wait ~10 seconds, check /rtabmap/info topic
 ```
 
 ### Robot doesn't move after setting Nav2 Goal
 
-Check the full chain:
-
 ```bash
-# Is controller receiving a path?
 ros2 topic hz /plan           # planner output
 ros2 topic hz /local_plan     # controller output
 ros2 topic hz /cmd_vel        # final velocity to robot
-
-# Is the costmap clear?
-# In RViz, enable Local Costmap display — robot must not be inside an obstacle
 ```
+
+In RViz, enable Local Costmap display — robot must not be inside an obstacle.
 
 ### AMCL: robot position jumps wildly
 
@@ -374,16 +425,15 @@ Initial pose not set. Click **2D Pose Estimate** in RViz and click the approxima
 
 ### "map yaml file not found" in AMCL mode
 
-Provide the full path to the `.yaml` file:
+Use the full path to the `.yaml` file:
 
 ```bash
-ros2 launch vf_robot_bringup bringup_launch.py mode:=amcl \
+ros2 launch vf_robot_bringup bringup_launch.py \
+    robot:=virofighter controller:=mppi localization:=amcl \
     map:=$HOME/cogni-nav-x0/maps/my_office/my_office.yaml
 ```
 
 ### Controller plugin not found
-
-If using `vf_robot_controller::VFRobotController`, ensure it's built and sourced:
 
 ```bash
 colcon build --packages-select vf_robot_controller --symlink-install
@@ -391,8 +441,6 @@ source install/setup.bash
 ```
 
 ### Costmap shows no obstacles
-
-Verify `/scan` is publishing and has valid data:
 
 ```bash
 ros2 topic hz /scan
