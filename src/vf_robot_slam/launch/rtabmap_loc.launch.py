@@ -57,20 +57,33 @@ def _get_rtabmap_loc_params(database_path, use_sim_time):
         "Optimizer/Strategy": "1",
         "Optimizer/Iterations": "20",
         "Optimizer/Slam2D": "true",
-        # ── Registration — ICP matches SLAM mode, more stable than visual-only ──
-        "Reg/Strategy": "1",               # was 0 (visual) — use ICP for consistency with SLAM
-        "Vis/EstimationType": "0",         # 3D-3D (avoids OpenGV dependency)
+        # ── Registration ──────────────────────────────────────────────────────
+        # MUST be visual (0) for localization, NOT ICP (1).
+        #
+        # ICP needs a good initial pose to converge. On every fresh Gazebo
+        # session the robot's odom starts at (0,0,0), making the initial
+        # map→odom guess (= last saved transform) wrong by an arbitrary amount.
+        # ICP diverges, loop closure is rejected, map→odom never corrects.
+        #
+        # Visual loop closure matches feature descriptors globally — no initial
+        # pose needed. It reliably relocates the robot within 1–3 seconds of
+        # startup. ICP was appropriate during SLAM (continuous odometry = good
+        # initial guess), but it breaks localization from a cold start.
+        "Reg/Strategy": "0",               # 0=visual (REQUIRED for cold-start relocalization)
+        "Vis/EstimationType": "1",         # 1=PnP (2D→3D) — more robust than 3D-3D for reloc
         "Reg/Force3DoF": "true",
         # ── Visual features ──
-        "Vis/MinInliers": "15",
+        "Vis/MinInliers": "12",            # was 15 — slightly easier to get first lock
         "Vis/InlierDistance": "0.1",
         "Vis/MaxFeatures": "500",
         "Vis/FeatureType": "8",
         # ── Loop closure ──
         "Rtabmap/DetectionRate": "2.0",
-        "Rtabmap/LoopThr": "0.15",            # was 0.09 — too sensitive, caused false loop closures
+        "Rtabmap/LoopThr": "0.11",         # was 0.15 (too strict → misses first lock)
+                                           # 0.09 caused false positives; 0.11 is the safe middle
         "RGBD/LoopClosureReextractFeatures": "true",
-        "RGBD/OptimizeMaxError": "1.0",        # was 3.0 — too permissive, allowed large map jumps
+        "RGBD/OptimizeMaxError": "3.0",    # was 1.0 — too tight, was rejecting valid first-lock
+                                           # loop closures where odom had drifted during startup
         # ── Map is static — do not update ──
         "RGBD/LinearUpdate": "0.0",
         "RGBD/AngularUpdate": "0.0",

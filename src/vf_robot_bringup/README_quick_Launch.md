@@ -164,10 +164,24 @@ ros2 launch vf_robot_bringup bringup_launch.py \
     camera:=dual \
     scan_method:=pc2scan \
     merge_scans:=true \
-    map_name:=<map_name> \
+    map_name:=my_office \
     use_sim_time:=true \
     rviz:=true
 ```
+### T3 — sidecar (no conda needed — just system python + h5py)   
+```bash                                                                       
+  source ~/cogni-nav-x0/install/setup.bash
+  cd ~/cogni-nav-x0/src/vf_robot_controller   # ← cd matters: h5 files                                                             
+  ros2 launch vf_robot_controller meta_critic_collect_launch.py 
+```
+ The cd to src/vf_robot_controller matters because data_dir defaults to training/data (a relative path). If you run from the wrong directory   
+  the .h5 files land somewhere unexpected.
+                                                                                                                                                
+  Verify data is being written — you should see this in Terminal 3 within a few seconds:                                                        
+  [data_logger] DataLogger: writing to training/data/run_20260411_XXXXXX.h5
+                                                                                                                                                
+  And after sending your first Nav2 goal:                                                                                                       
+  [data_logger] flushed 47 frames to disk  
 
 `vf_collect` is the data-logging variant of the VF controller. It runs
 the full critic stack but **records** everything to an HDF5 file.
@@ -199,11 +213,12 @@ python3 inspect_h5.py data/run_<timestamp>.h5
 **No Gazebo, no ROS needed.** Pure Python.
 
 ```bash
-cd ~/cogni-nav-x0/src/vf_robot_controller/training
+cd ~/cogni-nav-x0/src/vf_robot_controller
 conda activate dl
 
 # Train the META_CRITIC model
-python3 train.py --method meta_critic
+
+python training/train.py --method META_CRITIC
 
 # Or train the IMITATION baseline
 python3 train.py --method imitation

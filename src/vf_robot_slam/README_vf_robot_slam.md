@@ -1168,6 +1168,12 @@ The original merger rejected scans older than 0.5 s. With Gazebo, clock propagat
 **8. D455 `output_frame` must be `camera_d455_link`, not `base_footprint` (dimg method).**
 `depthimage_to_laserscan` does NOT rotate angle values — it only stamps the `header.frame_id`. Using `base_footprint` as output_frame makes the scan appear to face forward when the camera faces rear. The `scan_merger` handles the cross-frame transformation.
 
+**9. `Reg/Strategy` MUST be `"0"` (visual) in localization mode, NOT `"1"` (ICP).**
+ICP registration needs a close initial pose to converge. In localization, every fresh Gazebo session starts with `odom=(0,0,0)` and the initial `map→odom` is whatever was saved last session — making the initial guess wrong by an arbitrary offset. ICP diverges immediately, no loop closure is accepted, `map→odom` never updates, and the scan creates phantom obstacles everywhere. Visual registration (`Reg/Strategy: "0"`) matches feature descriptors globally — no initial pose needed — and relocates the robot in 1–5 seconds. ICP works in SLAM because continuous odometry provides a good initial guess; it fails for cold-start localization.
+
+**10. `Rtabmap/LoopThr` and `RGBD/OptimizeMaxError` interact on first lock.**
+`LoopThr: 0.15` (too strict) rejects the first weak visual match. `OptimizeMaxError: 1.0` (too tight) rejects the subsequent graph optimization if odom drifted during startup. Use `LoopThr: 0.11` and `OptimizeMaxError: 3.0` for reliable first-lock at the start of a session.
+
 ---
 
 ## 📄 Dependencies
